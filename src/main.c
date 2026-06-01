@@ -1,6 +1,8 @@
 #include "velora/common.h"
-
+#include "velora/logger.h"
 int main()
 {
-    printf("Hello world");
+    vr_log_init();
+    printf("Hello world\n");
+    vr_log_close();
 }

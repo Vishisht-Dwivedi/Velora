@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Iinclude
-SRC = src/main.c
+CFLAGS = -Wall -Wextra -Iinclude -pthread
+SRC = $(wildcard src/*.c src/core/*.c src/net/*.c)
 OUT = build/velora
 
 all:

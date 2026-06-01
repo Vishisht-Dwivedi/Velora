@@ -5,4 +5,6 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+struct sockaddr_in server_addr;
+
 #endif

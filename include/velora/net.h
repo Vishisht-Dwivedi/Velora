@@ -5,6 +5,6 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-struct sockaddr_in server_addr;
+int vr_tcp_server_create(uint16_t port, int *socket_fd);
 
 #endif

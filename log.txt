@@ -1,0 +1,8 @@
+INFO: INITIALIZED
+INFO: Setup sockaddr struct correctly
+INFO: Socket fd: 4
+INFO: SO_REUSEADDR success
+INFO: Socket bind successful
+INFO: Listening on socket 4
+INFO: Server Started on port: 22409
+EXIT

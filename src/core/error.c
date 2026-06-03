@@ -13,10 +13,16 @@ const char *vr_error_string(vr_error_t err)
             return "Failed to initialize mutex";
         case VR_ERR_SOCKET_CREATE:
             return "Failed to create socket";
+        case VR_ERR_SOCKET_CONNECT:
+            return "Failed to connect to the socket fd";
         case VR_ERR_SOCKET_BIND:
             return "Failed to bind socket";
         case VR_ERR_SOCKET_LISTEN:
             return "Failed to listen on socket";
+        case VR_ERR_INVALID_ADDR:
+            return "Error due to invalid address provided";
+        case VR_ERR_INVALID_ADDR_FAMILY:
+            return "Error due to unsupported address family";
         default:
             return "Unknown error";
     }

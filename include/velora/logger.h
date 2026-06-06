@@ -10,7 +10,7 @@ typedef enum
     VR_LOG_WARN
 } vr_log_level_t;
 
-int vr_log_init(void);
+vr_result_t vr_log_init(void);
 void vr_log(vr_log_level_t type, const char *fmt, ...);
 void vr_log_close(void);
 

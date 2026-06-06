@@ -4,7 +4,7 @@
 #include "velora/logger.h"
 #include "velora/socket_utils.h"
 
-int vr_tcp_server_create(uint16_t port, int *socket_fd)
+vr_result_t vr_tcp_server_create(uint16_t port, int *socket_fd)
 {
     if (socket_fd == NULL)
     {

@@ -10,7 +10,10 @@
 #include <string.h>
 #include <sys/types.h>
 
-#define VR_SUCCESS 0
-#define VR_ERROR   -1
+typedef enum
+{
+    VR_SUCCESS,
+    VR_ERROR
+} vr_result_t;
 
 #endif

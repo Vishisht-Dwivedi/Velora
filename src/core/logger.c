@@ -3,7 +3,7 @@
 static FILE *log_ptr = NULL;
 static pthread_mutex_t log_mutex;
 
-int vr_log_init(void)
+vr_result_t vr_log_init(void)
 {
     if((log_ptr = fopen("log.txt", "a+")) == NULL)
     {

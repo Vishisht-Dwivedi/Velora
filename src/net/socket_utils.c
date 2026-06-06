@@ -2,7 +2,7 @@
 #include "velora/logger.h"
 #include "velora/error.h"
 
-int vr_server_addr_init(struct sockaddr_in *addr, uint16_t port)
+vr_result_t vr_server_addr_init(struct sockaddr_in *addr, uint16_t port)
 {
     if(addr == NULL)
     {
@@ -17,7 +17,7 @@ int vr_server_addr_init(struct sockaddr_in *addr, uint16_t port)
     return VR_SUCCESS;
 }
 
-int vr_socket_create(void)
+vr_result_t vr_socket_create(void)
 {
     int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if(fd == -1)
@@ -29,7 +29,7 @@ int vr_socket_create(void)
     return fd;
 }
 
-int vr_socket_bind(struct sockaddr_in *addr, int fd)
+vr_result_t vr_socket_bind(struct sockaddr_in *addr, int fd)
 {
     int res = bind(fd, (struct sockaddr *)addr, sizeof(*addr));
     if (res == -1)
@@ -41,7 +41,7 @@ int vr_socket_bind(struct sockaddr_in *addr, int fd)
     return VR_SUCCESS;
 }
 
-int vr_socket_listen(int fd)
+vr_result_t vr_socket_listen(int fd)
 {
     int res = listen(fd, SOMAXCONN);
     if (res == -1)
@@ -53,7 +53,7 @@ int vr_socket_listen(int fd)
     return VR_SUCCESS;
 }
 
-int vr_socket_set_reuseaddr(int fd) 
+vr_result_t vr_socket_set_reuseaddr(int fd) 
 {
     int opt = 1;
     int res = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));

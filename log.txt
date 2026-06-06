@@ -5,4 +5,6 @@ INFO: SO_REUSEADDR success
 INFO: Socket bind successful
 INFO: Listening on socket 4
 INFO: Server Started on port: 22409
+INFO: Connection to client established for client ip: 127.0.0.1:57828 at fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:39896 at fd: 5
 EXIT

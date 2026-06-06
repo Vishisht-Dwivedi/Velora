@@ -15,6 +15,8 @@ const char *vr_error_string(vr_error_t err)
             return "Failed to create socket";
         case VR_ERR_SOCKET_CONNECT:
             return "Failed to connect to the socket fd";
+        case VR_ERR_SOCKET_ACCEPT:
+            return "Failed to accept queued connection";
         case VR_ERR_SOCKET_BIND:
             return "Failed to bind socket";
         case VR_ERR_SOCKET_LISTEN:

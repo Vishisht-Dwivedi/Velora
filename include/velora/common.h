@@ -9,6 +9,19 @@
 #include <stddef.h>
 #include <string.h>
 #include <sys/types.h>
+#include <signal.h>
+
+enum State
+{
+    RUNNING,
+    SHUTDOWN_REQUESTED,
+    EXITED
+};
+
+extern volatile sig_atomic_t running_status;
+
+void handle_shutdown(int signal);
+
 
 typedef enum
 {

@@ -1,6 +1,8 @@
 #include "velora/common.h"
 #include "velora/logger.h"
 #include "velora/net.h"
+#include "velora/socket_utils.h"
+#include "velora/error.h"
 #include <unistd.h>
 
 
@@ -38,7 +40,23 @@ int main()
     {
         if(vr_tcp_accept(fd, &conn) != VR_SUCCESS)
             continue;
-        printf("Connection to client estabilished\n");
+
+        char buf[VR_IO_BUFFER_SIZE];
+        ssize_t n = vr_socket_recv(conn.fd, (void *)buf, sizeof(buf), 0);
+        if (n == 0)
+        {
+            vr_log(VR_LOG_INFO, "Client Disconnected");
+            close(conn.fd);
+            continue;
+        } 
+        if (n == -1)
+        {
+            vr_perror("Error occured in the connection");
+            close(conn.fd);
+            continue;
+        }
+        size_t len = n;
+        vr_socket_send_all(conn.fd, buf, &len, 0);
         close(conn.fd);
     }
     close(fd);

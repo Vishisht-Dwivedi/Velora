@@ -1,0 +1,11 @@
+INFO: INITIALIZED
+INFO: Setup sockaddr struct correctly
+INFO: Socket fd: 4
+INFO: SO_REUSEADDR success
+INFO: Socket bind successful
+INFO: Listening on socket 4
+INFO: Server Started on port: 22409
+INFO: Connection to client established for client ip: 127.0.0.1:55428 at fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:47924 at fd: 5
+ERROR: Failed to accept queued connection: Interrupted system call
+EXIT

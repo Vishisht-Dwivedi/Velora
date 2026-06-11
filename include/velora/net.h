@@ -4,7 +4,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-
+#define VR_IO_BUFFER_SIZE 4096
 vr_result_t vr_tcp_server_create(uint16_t port, int *socket_fd);
 
 typedef struct 

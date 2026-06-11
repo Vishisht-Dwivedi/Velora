@@ -4,7 +4,7 @@
 #include "velora/socket_utils.h"
 #include "velora/error.h"
 #include <unistd.h>
-
+#include "velora/reactor.h"
 
 volatile sig_atomic_t running_status = RUNNING;
 
@@ -29,6 +29,10 @@ int main()
 {
     setup_signals();
     vr_log_init();
+    vr_reactor_t reactor;
+    reactor.epoll_fd = -1;
+    vr_reactor_create(&reactor);
+    vr_reactor_destroy(&reactor);
     int fd;
     int port = 22409;
     if ((vr_tcp_server_create(port, &fd)) == VR_SUCCESS)

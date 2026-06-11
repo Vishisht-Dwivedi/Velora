@@ -32,37 +32,25 @@ int main()
     vr_reactor_t reactor;
     reactor.epoll_fd = -1;
     vr_reactor_create(&reactor);
-    vr_reactor_destroy(&reactor);
     int fd;
     int port = 22409;
     if ((vr_tcp_server_create(port, &fd)) == VR_SUCCESS)
     {
         vr_log(VR_LOG_INFO, "Server Started on port: %d", port);
     }
+    vr_reactor_add(&reactor, fd, EPOLLIN);
     vr_connection_t conn;
     while (running_status == RUNNING)
     {
-        if(vr_tcp_accept(fd, &conn) != VR_SUCCESS)
-            continue;
-
-        char buf[VR_IO_BUFFER_SIZE];
-        ssize_t n = vr_socket_recv(conn.fd, (void *)buf, sizeof(buf), 0);
-        if (n == 0)
+        vr_reactor_wait(&reactor, -1);
+        for (int i = 0; i < reactor.ready_events; i++)
         {
-            vr_log(VR_LOG_INFO, "Client Disconnected");
-            close(conn.fd);
-            continue;
-        } 
-        if (n == -1)
-        {
-            vr_perror("Error occured in the connection");
-            close(conn.fd);
-            continue;
+            int ready_fd = reactor.events[i].data.fd;
+            vr_log(VR_LOG_INFO, "Ready fd: %d", ready_fd);
         }
-        size_t len = n;
-        vr_socket_send_all(conn.fd, buf, &len, 0);
-        close(conn.fd);
+        reactor.ready_events = 0;
     }
     close(fd);
+    vr_reactor_destroy(&reactor);
     vr_log_close();
 }

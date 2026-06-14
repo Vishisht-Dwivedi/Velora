@@ -42,7 +42,7 @@ int main()
     {
         vr_log(VR_LOG_INFO, "Set listening socket to non blocking");
     }
-    vr_reactor_add(&reactor, listen_fd, EPOLLIN);
+    vr_reactor_add(&reactor, listen_fd, EPOLLIN | EPOLLET);
     vr_connection_t conn;
     char buffer[VR_IO_BUFFER_SIZE + 1];
     while (running_status == RUNNING)
@@ -54,36 +54,52 @@ int main()
             vr_log(VR_LOG_INFO, "Ready fd: %d", ready_fd);
             if (ready_fd == listen_fd)
             {
-                if((vr_tcp_accept(ready_fd, &conn) == VR_ERROR))
+                while (true)
+                {
+                    vr_result_t res = vr_tcp_accept(ready_fd, &conn);
+                    if (res == VR_SUCCESS)
+                    {
+                        vr_socket_set_non_blocking(conn.fd);
+                        vr_reactor_add(&reactor, conn.fd, EPOLLIN | EPOLLET);
+                        continue;
+                    }
+                    if (res == VR_EMPTY) break;
+                    vr_perror("Error in socket accept");
                     break;
-                vr_socket_set_non_blocking(conn.fd);
-                vr_reactor_add(&reactor, conn.fd, EPOLLIN);
+                }
             }
             else
             {
-                ssize_t len = vr_socket_recv(ready_fd, (void *)buffer, VR_IO_BUFFER_SIZE, 0);
-                if (len == 0)
+                size_t total = 0;
+                bool disconnected = false;
+                while (true)
                 {
-                    vr_log(VR_LOG_INFO, "Client Disconnected");
-                    vr_reactor_remove(&reactor, ready_fd);
-                    close(ready_fd);
-                    continue;
-                }
-                if (len == -1)
-                {
-                    if (errno == EAGAIN || errno == EWOULDBLOCK)
+                    ssize_t len = vr_socket_recv(ready_fd, (void *)buffer, VR_IO_BUFFER_SIZE, 0);
+                    if (len == 0)
                     {
-                        continue;
-                    }
-                    else
-                    {
+                        vr_log(VR_LOG_INFO, "Client Disconnected");
                         vr_reactor_remove(&reactor, ready_fd);
                         close(ready_fd);
-                        continue;
+                        disconnected = true;
+                        break;
                     }
+                    else if (len == -1)
+                    {
+                        if (errno == EAGAIN || errno == EWOULDBLOCK)
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            vr_reactor_remove(&reactor, ready_fd);
+                            close(ready_fd);
+                            break;
+                        }
+                    }
+                    total += len;
                 }
-                buffer[len] = '\0';
-                vr_log(VR_LOG_INFO, "Received bytes: %s", buffer);
+                if(!disconnected)
+                    vr_log(VR_LOG_INFO, "Received %zu bytes", total);
             }
         }
         reactor.ready_events = 0;

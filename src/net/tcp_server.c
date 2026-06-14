@@ -46,7 +46,8 @@ vr_result_t vr_tcp_accept(int server_fd, vr_connection_t *conn)
     socklen_t addr_len = sizeof(client_addr);
     if ((client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &addr_len)) == -1)
     {
-        //dont log here.. caller decides based on error
+        if(errno == EAGAIN || errno == EWOULDBLOCK)
+            return VR_EMPTY;
         return VR_ERROR;
     }
     uint16_t port = ntohs(client_addr.sin_port);

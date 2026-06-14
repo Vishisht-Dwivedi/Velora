@@ -26,7 +26,9 @@ void handle_shutdown(int signal);
 typedef enum
 {
     VR_SUCCESS,
-    VR_ERROR
+    VR_ERROR,
+    VR_EMPTY 
 } vr_result_t;
+//VR_EMPTY is used to indicate empty socket
 
 #endif

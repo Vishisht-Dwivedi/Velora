@@ -10,50 +10,19 @@ INFO: Set listening socket to non blocking
 INFO: Added element to reactor loop successfully
 INFO: Retrieved 1 events
 INFO: Ready fd: 5
-INFO: Connection to client established for client ip: 127.0.0.1:39980 at fd: 6
+INFO: Connection to client established for client ip: 127.0.0.1:34348 at fd: 6
 INFO: Added element to reactor loop successfully
 INFO: Retrieved 1 events
 INFO: Ready fd: 6
-INFO: Received bytes: hi
-
-INFO: Retrieved 1 events
-INFO: Ready fd: 5
-INFO: Connection to client established for client ip: 127.0.0.1:48828 at fd: 7
-INFO: Added element to reactor loop successfully
-INFO: Retrieved 1 events
-INFO: Ready fd: 7
-INFO: Received bytes: hi
-
-INFO: Retrieved 1 events
-INFO: Ready fd: 5
-INFO: Connection to client established for client ip: 127.0.0.1:48834 at fd: 8
-INFO: Added element to reactor loop successfully
-INFO: Retrieved 1 events
-INFO: Ready fd: 8
-INFO: Received bytes: hola
-
-INFO: Retrieved 1 events
-INFO: Ready fd: 7
-INFO: Client Disconnected
-INFO: Removed element from reactor loop successfully
-INFO: Retrieved 1 events
-INFO: Ready fd: 8
-INFO: Received bytes: yo
-
+INFO: Received 16384 bytes
 INFO: Retrieved 1 events
 INFO: Ready fd: 6
-INFO: Received bytes: yo
-
+INFO: Received 83616 bytes
 INFO: Retrieved 1 events
 INFO: Ready fd: 6
-INFO: Client Disconnected
-INFO: Removed element from reactor loop successfully
+INFO: Received 1 bytes
 INFO: Retrieved 1 events
-INFO: Ready fd: 8
-INFO: Received bytes: huehuehue
-
-INFO: Retrieved 1 events
-INFO: Ready fd: 8
+INFO: Ready fd: 6
 INFO: Client Disconnected
 INFO: Removed element from reactor loop successfully
 ERROR: Error while waiting on epoll: Interrupted system call

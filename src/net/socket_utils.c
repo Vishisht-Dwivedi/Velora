@@ -71,7 +71,8 @@ ssize_t vr_socket_recv(int fd, void *buf, size_t len, int flags)
     ssize_t received_len = recv(fd, buf, len, flags);
     if(received_len == -1)
     {
-        vr_perror("Socket data reception error");
+        if(errno != EAGAIN && errno != EWOULDBLOCK)
+            vr_perror("Socket data reception error");
     }
     return received_len;
 }

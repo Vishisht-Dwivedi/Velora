@@ -114,3 +114,21 @@ ssize_t vr_socket_send_all(int fd, const void *buf, size_t *len, int flags)
     *len = total;
     return total;
 }
+
+
+vr_result_t vr_socket_set_non_blocking(int sockfd)
+{
+    int flags = fcntl(sockfd, F_GETFL);
+    if (flags == -1)
+    {
+        vr_perror("Error while getting fcntl flags");
+        return VR_ERROR;
+    }
+    flags |= O_NONBLOCK;
+    if (fcntl(sockfd, F_SETFL, flags) == -1)
+    {
+        vr_perror("Error while setting fcntl");
+        return VR_ERROR;
+    }
+    return VR_SUCCESS;
+}

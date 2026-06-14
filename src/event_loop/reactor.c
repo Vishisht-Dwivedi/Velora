@@ -71,3 +71,20 @@ vr_result_t vr_reactor_wait(vr_reactor_t *reactor, int timeout)
     vr_log(VR_LOG_INFO, "Retrieved %d events", res);
     return VR_SUCCESS;
 }
+
+vr_result_t vr_reactor_remove(vr_reactor_t *reactor, int client_fd)
+{
+    if (reactor == NULL)
+    {
+        vr_log(VR_LOG_ERROR, "NULL reactor passed");
+        return VR_ERROR;
+    }
+    int res = epoll_ctl(reactor->epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+    if(res == -1)
+    {
+        vr_perror("Error on deleting fd from reactor events");
+        return VR_ERROR;
+    }
+    vr_log(VR_LOG_INFO, "Removed element from reactor loop successfully");
+    return VR_SUCCESS;    
+}

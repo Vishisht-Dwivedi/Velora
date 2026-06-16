@@ -39,7 +39,7 @@ vr_result_t vr_tcp_server_create(uint16_t port, int *socket_fd)
     return VR_SUCCESS;
 }
 
-vr_result_t vr_tcp_accept(int server_fd, vr_connection_t *conn)
+vr_result_t vr_tcp_accept(int server_fd, vr_net_conn_t *conn)
 {
     int client_fd;
     struct sockaddr_in client_addr;

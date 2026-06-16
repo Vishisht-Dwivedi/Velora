@@ -6,8 +6,6 @@
 #include <unistd.h>
 #include "velora/reactor.h"
 
-volatile sig_atomic_t running_status = RUNNING;
-
 void handle_shutdown(int signal)
 {
     (void)signal;
@@ -30,81 +28,9 @@ int main()
     setup_signals();
     vr_log_init();
     vr_reactor_t reactor;
-    reactor.epoll_fd = -1;
-    vr_reactor_create(&reactor);
-    int listen_fd;
+    vr_net_conn_t conn;
+    int listen_fd = 0;
     int port = 22409;
-    if ((vr_tcp_server_create(port, &listen_fd)) == VR_SUCCESS)
-    {
-        vr_log(VR_LOG_INFO, "Server Started on port: %d", port);
-    }
-    if((vr_socket_set_non_blocking(listen_fd)) == VR_SUCCESS)
-    {
-        vr_log(VR_LOG_INFO, "Set listening socket to non blocking");
-    }
-    vr_reactor_add(&reactor, listen_fd, EPOLLIN | EPOLLET);
-    vr_connection_t conn;
-    char buffer[VR_IO_BUFFER_SIZE + 1];
-    while (running_status == RUNNING)
-    {
-        vr_reactor_wait(&reactor, -1);
-        for (int i = 0; i < reactor.ready_events; i++)
-        {
-            int ready_fd = reactor.events[i].data.fd;
-            vr_log(VR_LOG_INFO, "Ready fd: %d", ready_fd);
-            if (ready_fd == listen_fd)
-            {
-                while (true)
-                {
-                    vr_result_t res = vr_tcp_accept(ready_fd, &conn);
-                    if (res == VR_SUCCESS)
-                    {
-                        vr_socket_set_non_blocking(conn.fd);
-                        vr_reactor_add(&reactor, conn.fd, EPOLLIN | EPOLLET);
-                        continue;
-                    }
-                    if (res == VR_EMPTY) break;
-                    vr_perror("Error in socket accept");
-                    break;
-                }
-            }
-            else
-            {
-                size_t total = 0;
-                bool disconnected = false;
-                while (true)
-                {
-                    ssize_t len = vr_socket_recv(ready_fd, (void *)buffer, VR_IO_BUFFER_SIZE, 0);
-                    if (len == 0)
-                    {
-                        vr_log(VR_LOG_INFO, "Client Disconnected");
-                        vr_reactor_remove(&reactor, ready_fd);
-                        close(ready_fd);
-                        disconnected = true;
-                        break;
-                    }
-                    else if (len == -1)
-                    {
-                        if (errno == EAGAIN || errno == EWOULDBLOCK)
-                        {
-                            break;
-                        }
-                        else
-                        {
-                            vr_reactor_remove(&reactor, ready_fd);
-                            close(ready_fd);
-                            break;
-                        }
-                    }
-                    total += len;
-                }
-                if(!disconnected)
-                    vr_log(VR_LOG_INFO, "Received %zu bytes", total);
-            }
-        }
-        reactor.ready_events = 0;
-    }
-    close(listen_fd);
-    vr_reactor_destroy(&reactor);
+    vr_reactor_loop(&reactor, &conn, listen_fd, port);
     vr_log_close();
 }

@@ -11,8 +11,8 @@ typedef struct
 {
     int fd;
     struct sockaddr_in addr;
-} vr_connection_t;
+} vr_net_conn_t;
 
-vr_result_t vr_tcp_accept(int server_fd, vr_connection_t *conn);
+vr_result_t vr_tcp_accept(int server_fd, vr_net_conn_t *conn);
 
 #endif

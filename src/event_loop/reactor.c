@@ -23,6 +23,7 @@ vr_result_t vr_reactor_create(vr_reactor_t *reactor)
     vr_log(VR_LOG_INFO, "epoll fd created: %d", e_fd);
     return VR_SUCCESS;
 }
+
 vr_result_t vr_reactor_destroy(vr_reactor_t *reactor)
 {
     if (reactor == NULL)
@@ -40,7 +41,7 @@ vr_result_t vr_reactor_destroy(vr_reactor_t *reactor)
     return VR_SUCCESS;
 }
 
-vr_result_t vr_reactor_add(vr_reactor_t *reactor, int client_fd, u_int32_t events)
+vr_result_t vr_reactor_add(vr_reactor_t *reactor, vr_connection_t *conn, u_int32_t events)
 {
     if (reactor == NULL)
     {
@@ -49,8 +50,8 @@ vr_result_t vr_reactor_add(vr_reactor_t *reactor, int client_fd, u_int32_t event
     }
     struct epoll_event ev = {0};
     ev.events = events;
-    ev.data.fd = client_fd;
-    int res = epoll_ctl(reactor->epoll_fd, EPOLL_CTL_ADD, client_fd, &ev);
+    ev.data.ptr = conn;
+    int res = epoll_ctl(reactor->epoll_fd, EPOLL_CTL_ADD, conn->net_conn.fd, &ev);
     if(res == -1)
     {
         vr_perror("Error on adding fd to reactor events");
@@ -83,14 +84,14 @@ vr_result_t vr_reactor_wait(vr_reactor_t *reactor, int timeout)
     return VR_SUCCESS;
 }
 
-vr_result_t vr_reactor_remove(vr_reactor_t *reactor, int client_fd)
+vr_result_t vr_reactor_remove(vr_reactor_t *reactor, vr_connection_t *conn)
 {
     if (reactor == NULL)
     {
         vr_log(VR_LOG_ERROR, "NULL reactor passed");
         return VR_ERROR;
     }
-    int res = epoll_ctl(reactor->epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
+    int res = epoll_ctl(reactor->epoll_fd, EPOLL_CTL_DEL, conn->net_conn.fd, NULL);
     if(res == -1)
     {
         vr_perror("Error on deleting fd from reactor events");
@@ -100,8 +101,9 @@ vr_result_t vr_reactor_remove(vr_reactor_t *reactor, int client_fd)
     return VR_SUCCESS;    
 }
 
-vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_net_conn_t *conn, int listen_fd, int port)
+vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_connection_manager_t *manager, int port)
 {
+    int listen_fd = 0;
     reactor->epoll_fd = -1;
     vr_reactor_create(reactor);
     if ((vr_tcp_server_create(port, &listen_fd)) == VR_SUCCESS)
@@ -112,73 +114,111 @@ vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_net_conn_t *conn, int list
     {
         vr_log(VR_LOG_INFO, "Set listening socket to non blocking");
     }
-    vr_reactor_add(reactor, listen_fd, EPOLLIN | EPOLLET);
-    char buffer[VR_IO_BUFFER_SIZE + 1];
+    vr_connection_t *listener_conn = malloc(sizeof(vr_connection_t));
+    if(listener_conn == NULL)
+    {
+        vr_perror("Malloc failed while allocating mem for listener connection in reactor loop");
+        return VR_ERROR;
+    }
+    memset(listener_conn, 0, sizeof(*listener_conn));
+    listener_conn->net_conn.fd = listen_fd;
+    listener_conn->type = VR_CONN_LISTENER;
+    vr_reactor_add(reactor, listener_conn, EPOLLIN | EPOLLET);
+
     while (running_status == RUNNING)
     {
-        vr_reactor_wait(reactor, -1);
+        if (vr_reactor_wait(reactor, -1) != VR_SUCCESS)
+            break;
         for (int i = 0; i < reactor->ready_events; i++)
         {
-            int ready_fd = reactor->events[i].data.fd;
+            vr_connection_t *ready_conn = reactor->events[i].data.ptr;
+            int ready_fd = ready_conn->net_conn.fd;
             vr_log(VR_LOG_INFO, "Ready fd: %d", ready_fd);
-            if (ready_fd == listen_fd)
+            switch (ready_conn->type)
             {
-                while (true)
-                {
-                    vr_result_t res = vr_tcp_accept(ready_fd, conn);
-                    if (res == VR_SUCCESS)
+                case VR_CONN_LISTENER: {
+                    //if socket is a listener.. all it does is accept.. create.. and add...
+                    while (true)
                     {
-                        vr_socket_set_non_blocking(conn->fd);
-                        vr_reactor_add(reactor, conn->fd, EPOLLIN | EPOLLET);
-                        continue;
-                    }
-                    if (res == VR_EMPTY) break;
-                    if (res == VR_INTERRUPTED)
-                    {
-                        vr_log(VR_LOG_INFO, "Stopped calling accept");
+                        vr_net_conn_t new_net_conn = {0};
+                        vr_result_t res = vr_tcp_accept(ready_fd, &new_net_conn);
+                        if (res == VR_SUCCESS)
+                        {
+                            vr_connection_t *new_conn = vr_connection_create(manager, new_net_conn);
+                            if(new_conn == NULL)
+                            {
+                                close(new_net_conn.fd);
+                                continue;
+                            }
+                            new_conn->type = VR_CONN_CLIENT;
+                            vr_socket_set_non_blocking(new_conn->net_conn.fd);
+                            vr_reactor_add(reactor, new_conn, EPOLLIN | EPOLLET);
+                            continue;
+                        }
+                        if (res == VR_EMPTY) break;
+                        if (res == VR_INTERRUPTED)
+                        {
+                            vr_log(VR_LOG_INFO, "Stopped calling accept");
+                            break;
+                        }
+                        vr_perror("Error in socket accept");
                         break;
                     }
-                    vr_perror("Error in socket accept");
                     break;
                 }
-            }
-            else
-            {
-                size_t total = 0;
-                bool disconnected = false;
-                while (true)
-                {
-                    ssize_t len = vr_socket_recv(ready_fd, (void *)buffer, VR_IO_BUFFER_SIZE, 0);
-                    if (len == 0)
+                case VR_CONN_CLIENT: {
+                    size_t total = 0;
+                    bool disconnected = false;
+                    char buffer[VR_IO_BUFFER_SIZE];
+                    while (true)
                     {
-                        vr_log(VR_LOG_INFO, "Client Disconnected");
-                        vr_reactor_remove(reactor, ready_fd);
-                        close(ready_fd);
-                        disconnected = true;
-                        break;
-                    }
-                    else if (len == -1)
-                    {
-                        if (errno == EAGAIN || errno == EWOULDBLOCK)
+                        ssize_t len = vr_socket_recv(ready_fd, (void *)buffer, VR_IO_BUFFER_SIZE, 0);
+                        if (len == 0)
                         {
-                            break;
-                        }
-                        else
-                        {
-                            vr_reactor_remove(reactor, ready_fd);
+                            vr_log(VR_LOG_INFO, "Client Disconnected");
+                            vr_reactor_remove(reactor, ready_conn);
                             close(ready_fd);
+                            if (vr_connection_destroy(manager, ready_conn) == VR_ERROR)
+                            {
+                                continue;
+                            }
+                            disconnected = true;
                             break;
                         }
+                        else if (len == -1)
+                        {
+                            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                            {
+                                break;
+                            }
+                            else
+                            {
+                                vr_reactor_remove(reactor, ready_conn);
+                                close(ready_fd);
+                                if (vr_connection_destroy(manager, ready_conn) == VR_ERROR)
+                                {
+                                    continue;
+                                }
+                                break;
+                            }
+                        }
+                        total += len;
                     }
-                    total += len;
+                    if(!disconnected)
+                        vr_log(VR_LOG_INFO, "Received %zu bytes", total);
+                    break;
                 }
-                if(!disconnected)
-                    vr_log(VR_LOG_INFO, "Received %zu bytes", total);
             }
         }
         reactor->ready_events = 0;
     }
+    while(manager->count > 0)
+    {
+        vr_connection_destroy(manager, manager->slots[0]);
+    }
+    vr_reactor_remove(reactor, listener_conn);
     close(listen_fd);
+    free(listener_conn);
     vr_reactor_destroy(reactor);
     return VR_SUCCESS;
 }

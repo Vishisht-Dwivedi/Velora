@@ -10,7 +10,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <signal.h>
-#include "shared/utilities.h"
+
 
 enum State
 {
@@ -19,10 +19,18 @@ enum State
     EXITED
 };
 
+typedef enum
+{
+    VR_SUCCESS,
+    VR_ERROR,
+    VR_INTERRUPTED,
+    VR_EMPTY 
+} vr_result_t;
+//VR_EMPTY is used to indicate empty socket
+
 extern volatile sig_atomic_t running_status;
 
 void handle_shutdown(int signal);
-
-
+#include "shared/utilities.h"
 
 #endif

@@ -5,6 +5,7 @@
 #include "velora/error.h"
 #include <unistd.h>
 #include "velora/reactor.h"
+#include "velora/conn.h"
 
 void handle_shutdown(int signal)
 {
@@ -28,9 +29,9 @@ int main()
     setup_signals();
     vr_log_init();
     vr_reactor_t reactor;
-    vr_net_conn_t conn;
-    int listen_fd = 0;
     int port = 22409;
-    vr_reactor_loop(&reactor, &conn, listen_fd, port);
+    vr_connection_manager_t manager;
+    vr_connection_manager_init(&manager, VR_MAX_CONNECTIONS);
+    vr_reactor_loop(&reactor, &manager, port);
     vr_log_close();
 }

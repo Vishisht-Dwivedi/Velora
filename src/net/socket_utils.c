@@ -77,6 +77,65 @@ ssize_t vr_socket_recv(int fd, void *buf, size_t len, int flags)
     return received_len;
 }
 
+//for ring bufs
+ssize_t vr_socket_recv_ring_buf(int fd, vr_connection_ring_buf_t *buf, int flags)
+{
+    if (buf->count == buf->capacity)
+    {
+        vr_log(VR_LOG_WARN, "Buffer full or uninitialized");
+        errno = ENOBUFS;
+        return -1;
+    }
+    size_t free_space = buf->capacity - buf->count;
+    if(buf->write_pos >= buf->read_pos)
+    {
+        struct msghdr msg = {0};
+        struct iovec regions[2];
+        size_t region1_len = buf->capacity - buf->write_pos;
+        if (region1_len > free_space)
+            region1_len = free_space;
+        size_t region2_len =
+            free_space - region1_len;
+        if(region2_len > buf->read_pos)
+            region2_len = buf->read_pos;
+
+        regions[0].iov_base = &buf->data[buf->write_pos];
+        regions[0].iov_len  = region1_len;
+        regions[1].iov_base = buf->data;
+        regions[1].iov_len  = region2_len;
+        msg.msg_iov = regions;
+        msg.msg_iovlen = (region2_len > 0) ? 2 : 1;
+
+        ssize_t received_len = recvmsg(fd, &msg, flags);
+        if(received_len <= 0)
+        {
+            if (received_len == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
+            {
+                vr_perror("Socket data reception error");
+            }
+            return received_len;
+        }
+        buf->write_pos = (buf->write_pos + received_len) % buf->capacity;
+        buf->count += received_len;
+        return received_len;
+    }
+    size_t contiguous = buf->read_pos - buf->write_pos;
+    if(contiguous > free_space)
+        contiguous = free_space;
+    ssize_t received_len = recv(fd, &buf->data[buf->write_pos], contiguous, flags);
+    if(received_len <= 0)
+    {
+        if (received_len == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
+        {
+            vr_perror("Socket data reception error");
+        }
+        return received_len;
+    }
+    buf->write_pos = (buf->write_pos + received_len) % buf->capacity;
+    buf->count += received_len;
+    return received_len;
+}
+
 //for async later with partial send acceptance
 ssize_t vr_socket_send(int fd, const void *buf, size_t len, int flags)
 {

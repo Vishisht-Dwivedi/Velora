@@ -1,0 +1,41 @@
+INFO: INITIALIZED
+INFO: epoll fd created: 4
+INFO: Setup sockaddr struct correctly
+INFO: Socket fd: 5
+INFO: SO_REUSEADDR success
+INFO: Socket bind successful
+INFO: Listening on socket 5
+INFO: Server Started on port: 22409
+INFO: Set listening socket to non blocking
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:41230 at fd: 6
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+WARN: Buffer full or uninitialized
+INFO: Ring buffer allocated cap=4096
+WARN: Buffer full or uninitialized
+INFO: Growing ring buffer: old_cap=8192 count=4096 read=0 write=4096
+WARN: Buffer full or uninitialized
+INFO: Growing ring buffer: old_cap=16384 count=8192 read=0 write=8192
+WARN: Buffer full or uninitialized
+INFO: Growing ring buffer: old_cap=32768 count=16384 read=0 write=16384
+WARN: Buffer full or uninitialized
+INFO: Growing ring buffer: old_cap=65536 count=32768 read=0 write=32768
+WARN: Buffer full or uninitialized
+INFO: Received 65535 bytes
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+WARN: Buffer full or uninitialized
+INFO: Received 0 bytes
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+WARN: Buffer full or uninitialized
+INFO: Received 0 bytes
+INFO: Closing epoll
+INFO: Removed connection from manager successfully
+INFO: Removed element from reactor loop successfully
+INFO: Closed epoll file descriptor
+EXIT

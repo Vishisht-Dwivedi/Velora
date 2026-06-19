@@ -169,10 +169,9 @@ vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_connection_manager_t *mana
                 case VR_CONN_CLIENT: {
                     size_t total = 0;
                     bool disconnected = false;
-                    char buffer[VR_IO_BUFFER_SIZE];
                     while (true)
                     {
-                        ssize_t len = vr_socket_recv(ready_fd, (void *)buffer, VR_IO_BUFFER_SIZE, 0);
+                        ssize_t len = vr_socket_recv_ring_buf(ready_fd, &(ready_conn->read_buf), 0);
                         if (len == 0)
                         {
                             vr_log(VR_LOG_INFO, "Client Disconnected");
@@ -190,6 +189,22 @@ vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_connection_manager_t *mana
                             if (errno == EAGAIN || errno == EWOULDBLOCK)
                             {
                                 break;
+                            }
+                            else if (errno == ENOBUFS)
+                            {
+                                if (ready_conn->read_buf.state == VR_CONN_RING_BUF_UNALLOC) 
+                                {
+                                    if (vr_conn_ring_buf_init(&(ready_conn->read_buf)) == VR_ERROR)
+                                        break;
+                                    vr_log(VR_LOG_INFO, "Ring buffer allocated cap=%u", ready_conn->read_buf.capacity);
+                                }
+                                else
+                                {
+                                    if (vr_conn_ring_buf_grow(&(ready_conn->read_buf)) == VR_ERROR)
+                                        break;
+                                    vr_log(VR_LOG_INFO, "Growing ring buffer: old_cap=%u count=%u read=%u write=%u", ready_conn->read_buf.capacity, ready_conn->read_buf.count, ready_conn->read_buf.read_pos, ready_conn->read_buf.write_pos);
+                                    continue;
+                                }
                             }
                             else
                             {

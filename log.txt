@@ -10,32 +10,33 @@ INFO: Set listening socket to non blocking
 INFO: Added element to reactor loop successfully
 INFO: Retrieved 1 events
 INFO: Ready fd: 5
-INFO: Connection to client established for client ip: 127.0.0.1:41230 at fd: 6
+INFO: Connection to client established for client ip: 127.0.0.1:42240 at fd: 6
 INFO: Added element to reactor loop successfully
 INFO: Retrieved 1 events
 INFO: Ready fd: 6
 WARN: Buffer full or uninitialized
 INFO: Ring buffer allocated cap=4096
-WARN: Buffer full or uninitialized
-INFO: Growing ring buffer: old_cap=8192 count=4096 read=0 write=4096
-WARN: Buffer full or uninitialized
-INFO: Growing ring buffer: old_cap=16384 count=8192 read=0 write=8192
-WARN: Buffer full or uninitialized
-INFO: Growing ring buffer: old_cap=32768 count=16384 read=0 write=16384
-WARN: Buffer full or uninitialized
-INFO: Growing ring buffer: old_cap=65536 count=32768 read=0 write=32768
-WARN: Buffer full or uninitialized
-INFO: Received 65535 bytes
-INFO: Retrieved 1 events
-INFO: Ready fd: 6
-WARN: Buffer full or uninitialized
-INFO: Received 0 bytes
-INFO: Retrieved 1 events
-INFO: Ready fd: 6
-WARN: Buffer full or uninitialized
-INFO: Received 0 bytes
-INFO: Closing epoll
+INFO: Client Disconnected
+INFO: Removed element from reactor loop successfully
 INFO: Removed connection from manager successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:47748 at fd: 6
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+WARN: Buffer full or uninitialized
+INFO: Ring buffer allocated cap=4096
+INFO: header size: 8
+INFO: magic: 22098, ver: 1, type: 3, stream: 7, flags: 0, payload_len: 123
+INFO: After state, read_ptr: 8, write_ptr: 8
+INFO: Received 7 bytes
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Client Disconnected
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closing epoll
 INFO: Removed element from reactor loop successfully
 INFO: Closed epoll file descriptor
 EXIT

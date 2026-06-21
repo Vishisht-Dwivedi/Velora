@@ -6,6 +6,8 @@
 #include <sys/epoll.h>
 #include <fcntl.h>
 #include "velora/conn.h"
+#include "velora/protocol.h"
+#include "velora/parser.h"
 #define VR_REACTOR_MAX_EVENTS 1024
 
 typedef struct

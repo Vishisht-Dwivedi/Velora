@@ -220,7 +220,14 @@ vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_connection_manager_t *mana
                         total += len;
                     }
                     if(!disconnected)
+                    {
+                        vr_parser_t parser = {0};
+                        parser.state = VR_PARSER_HEADER_WAIT;
+                        vr_packet_t out = {0};
+                        vr_parser_poll(&parser, ready_conn, &out);
+                        vr_log(VR_LOG_INFO, "After state, read_ptr: %d, write_ptr: %d", ready_conn->read_buf.read_pos, ready_conn->read_buf.write_pos);
                         vr_log(VR_LOG_INFO, "Received %zu bytes", total);
+                    }
                     break;
                 }
             }

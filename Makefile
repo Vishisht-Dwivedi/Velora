@@ -5,7 +5,7 @@ RELEASE_FLAGS = -O3
 
 CFLAGS = -Wall -Wextra -Iinclude -pthread
 
-SRC = $(wildcard src/*.c src/event_loop/*.c src/core/*.c src/net/*.c src/conn/*.c src/shared/*.c)
+SRC = $(wildcard src/*.c src/event_loop/*.c src/core/*.c src/net/*.c src/conn/*.c src/shared/*.c src/protocol/*.c)
 
 OUT = build/velora
 

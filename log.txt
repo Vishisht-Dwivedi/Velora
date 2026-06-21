@@ -10,27 +10,51 @@ INFO: Set listening socket to non blocking
 INFO: Added element to reactor loop successfully
 INFO: Retrieved 1 events
 INFO: Ready fd: 5
-INFO: Connection to client established for client ip: 127.0.0.1:42240 at fd: 6
-INFO: Added element to reactor loop successfully
-INFO: Retrieved 1 events
-INFO: Ready fd: 6
-WARN: Buffer full or uninitialized
-INFO: Ring buffer allocated cap=4096
-INFO: Client Disconnected
-INFO: Removed element from reactor loop successfully
-INFO: Removed connection from manager successfully
-INFO: Retrieved 1 events
-INFO: Ready fd: 5
-INFO: Connection to client established for client ip: 127.0.0.1:47748 at fd: 6
+INFO: Connection to client established for client ip: 127.0.0.1:38592 at fd: 6
 INFO: Added element to reactor loop successfully
 INFO: Retrieved 1 events
 INFO: Ready fd: 6
 WARN: Buffer full or uninitialized
 INFO: Ring buffer allocated cap=4096
 INFO: header size: 8
-INFO: magic: 22098, ver: 1, type: 3, stream: 7, flags: 0, payload_len: 123
+INFO: magic: 22409, ver: 1, type: 7, stream: 1, flags: 0, payload_len: 0
+INFO: Packet validated
 INFO: After state, read_ptr: 8, write_ptr: 8
 INFO: Received 7 bytes
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Client Disconnected
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closing epoll
+INFO: Removed element from reactor loop successfully
+INFO: Closed epoll file descriptor
+EXIT
+INFO: INITIALIZED
+INFO: epoll fd created: 4
+INFO: Setup sockaddr struct correctly
+INFO: Socket fd: 5
+INFO: SO_REUSEADDR success
+INFO: Socket bind successful
+INFO: Listening on socket 5
+INFO: Server Started on port: 22409
+INFO: Set listening socket to non blocking
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:49480 at fd: 6
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+WARN: Buffer full or uninitialized
+INFO: Ring buffer allocated cap=4096
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 7, stream: 1, flags: 0, payload_len: 6
+INFO: Packet validated
+INFO: Entering payload phase
+INFO: Payload: velora
+INFO: After state, read_ptr: 14, write_ptr: 14
+INFO: Received 13 bytes
 INFO: Retrieved 1 events
 INFO: Ready fd: 6
 INFO: Client Disconnected

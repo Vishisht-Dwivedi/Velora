@@ -11,7 +11,6 @@ vr_result_t vr_connection_manager_init(vr_connection_manager_t *manager, size_t 
         vr_perror("Connection manager allocation failed");
         return VR_ERROR;
     }
-
     return VR_SUCCESS;
 }
 
@@ -56,6 +55,7 @@ vr_connection_t *vr_connection_create(vr_connection_manager_t *manager, vr_net_c
     new_connection->net_conn = conn;
     new_connection->slot = manager->count - 1;
     new_connection->status = VR_ACTIVE;
+    new_connection->parser.state = VR_PARSER_HEADER_WAIT;
     return new_connection;
 }
 

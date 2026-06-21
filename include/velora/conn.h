@@ -4,6 +4,7 @@
 #include "velora/net.h"
 #include "velora/logger.h"
 #include "velora/error.h"
+#include "velora/parser.h"
 
 #define VR_MAX_CONNECTIONS 65536
 #define VR_CONNECTION_BUFFER_INITIAL_SIZE 4096
@@ -46,7 +47,7 @@ typedef enum
     VR_CONN_CLIENT
 } vr_connection_type_t;
 
-typedef struct
+typedef struct vr_connection
 {
     vr_net_conn_t net_conn;
     vr_connection_status_t status;
@@ -54,6 +55,7 @@ typedef struct
     size_t slot;
     vr_connection_ring_buf_t read_buf;
     vr_connection_ring_buf_t write_buf;
+    vr_parser_t parser;
 } vr_connection_t;
 
 //since epoll now handles pointers.. 

@@ -1,9 +1,8 @@
 #ifndef VR_PACKET_H
 #define VR_PACKET_H
 #include "velora/common.h"
-#include "velora/conn.h"
 
-#define VR_MAGIC 0x22409
+#define VR_MAGIC 0x5789
 #define VR_PROTOCOL_VERSION 1
 
 typedef enum
@@ -25,6 +24,8 @@ typedef enum
     VR_FLAG_COMPRESSED = 1 << 0,
     VR_FLAG_ACK_REQ = 1 << 1
 } vr_packet_flag_t;
+
+#define VR_PACKET_VALID_FLAGS (VR_FLAG_COMPRESSED | VR_FLAG_ACK_REQ)
 
 typedef struct
 {

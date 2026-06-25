@@ -8,13 +8,13 @@
 typedef enum
 {
     VR_PKT_CONNECT = 1, // trying to connect
-    VR_PKT_CONNECT_ACK, // ack on the connect packet
+    VR_PKT_CONNECT_ACK, // ack on the connect packet... no need for stream flow for default connection
     VR_PKT_PING, // checkup
     VR_PKT_PONG, // ack to checkup
     VR_PKT_STREAM_OPEN, // declaring startup of stream
+    VR_PKT_STREAM_OPEN_ACK, //used to send stream info to client
     VR_PKT_STREAM_CLOSE, // declaring closing of stream
     VR_PKT_PUBLISH, // packet
-    VR_PKT_ACK, // ack to packet
     VR_PKT_ERROR // in case received packet was errornous
 } vr_packet_type_t;
 
@@ -42,5 +42,11 @@ typedef struct
     vr_packet_header_t header;
     uint8_t *payload;
 } vr_packet_t;
+
+void vr_encode_u16(uint8_t *buf, uint16_t value);
+uint16_t vr_decode_u16(uint8_t *buf);
+
+void vr_packet_serialize(vr_packet_t *packet, uint8_t *buff);
+void vr_packet_deserialize(vr_packet_t *packet, uint8_t *data);
 
 #endif

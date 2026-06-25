@@ -5,6 +5,7 @@
 #include "velora/logger.h"
 #include "velora/error.h"
 #include "velora/parser.h"
+#include "velora/protocol.h"
 
 #define VR_MAX_CONNECTIONS 65536
 #define VR_CONNECTION_BUFFER_INITIAL_SIZE 4096
@@ -56,6 +57,9 @@ typedef struct vr_connection
     vr_connection_ring_buf_t read_buf;
     vr_connection_ring_buf_t write_buf;
     vr_parser_t parser;
+    vr_protocol_state_t proto_state;
+    uint8_t active_streams;
+    uint64_t streams_bitmap[4]; // bitmask for checking if stream is assigned
 } vr_connection_t;
 
 //since epoll now handles pointers.. 

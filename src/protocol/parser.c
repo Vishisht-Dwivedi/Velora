@@ -10,12 +10,13 @@ vr_result_t vr_parser_poll(vr_parser_t *parser, vr_connection_t *conn, vr_packet
             return VR_EMPTY;
 
         //consumer.. fills in order
-        uint8_t *header_ptr = (uint8_t *)&parser->current_header;
-        for (uint_fast8_t i = 0; i < sizeof(vr_packet_header_t); i++)
+        uint8_t header_bytes[8];
+        for (uint_fast8_t i = 0; i < 8; i++)
         {
-            if (vr_conn_ring_buf_pop(&conn->read_buf, &header_ptr[i]) == VR_ERROR)
+            if (vr_conn_ring_buf_pop(&conn->read_buf, &header_bytes[i]) == VR_ERROR)
                 return VR_ERROR;
         }
+        vr_packet_header_deserialize(&parser->current_header, header_bytes);
         vr_log(VR_LOG_INFO, "header size: %zu", sizeof(vr_packet_header_t));
         vr_log(VR_LOG_INFO,
                 "magic: %d, ver: %d, type: %d, stream: %d, flags: %d, payload_len: %d",

@@ -36,35 +36,14 @@ void vr_packet_serialize(vr_packet_t *packet, uint8_t *buff)
         memcpy(p, packet->payload, packet->header.payload_len);
 }
 
-// allocates memory for payload after reading.. ensure its null earlier
-void vr_packet_deserialize(vr_packet_t *packet, uint8_t *data)
+void vr_packet_header_deserialize(vr_packet_header_t *header, uint8_t *data)
 {
-    if (packet == NULL || data == NULL)
-    {
-        vr_log(VR_LOG_ERROR, "Null ptrs passed to deserializer");
-        return;
-    }
     uint8_t *p = data;
-    packet->header.magic = vr_decode_u16(p);
+    header->magic = vr_decode_u16(p);
     p += 2;
-    packet->header.version = *p++;
-    packet->header.type = *p++;
-    packet->header.stream_id = *p++;
-    packet->header.flags = *p++;
-    packet->header.payload_len = vr_decode_u16(p);
-    p += 2;
-    if (packet->header.payload_len > 0)
-    {
-        packet->payload = malloc(packet->header.payload_len);
-        if(packet->payload == NULL)
-        {
-            vr_perror("Memory allocation failed during deserialization");
-            return;
-        }
-        memcpy(packet->payload, p, packet->header.payload_len);
-    }
-    else 
-    {
-        packet->payload = NULL;
-    }
+    header->version = *p++;
+    header->type = *p++;
+    header->stream_id = *p++;
+    header->flags = *p++;
+    header->payload_len = vr_decode_u16(p);
 }

@@ -22,3 +22,4 @@ vr_result_t vr_reactor_add(vr_reactor_t *reactor, vr_connection_t *conn, u_int32
 vr_result_t vr_reactor_wait(vr_reactor_t *reactor, int timeout);
 vr_result_t vr_reactor_remove(vr_reactor_t *reactor, vr_connection_t *conn);
 vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_connection_manager_t *manager, int port);
+vr_result_t vr_reactor_modify(vr_reactor_t *reactor, vr_connection_t *conn, uint32_t events);

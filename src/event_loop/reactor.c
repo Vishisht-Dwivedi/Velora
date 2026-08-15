@@ -243,3 +243,18 @@ vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_connection_manager_t *mana
     vr_reactor_destroy(reactor);
     return VR_SUCCESS;
 }
+vr_result_t vr_reactor_modify(vr_reactor_t *reactor, vr_connection_t *conn, uint32_t events)
+{
+    if(reactor == NULL || conn == NULL)
+        return VR_ERROR;
+
+    struct epoll_event ev = {0};
+    ev.events = events;
+    ev.data.ptr = conn;
+    if(epoll_ctl(reactor->epoll_fd, EPOLL_CTL_MOD, conn->net_conn.fd, &ev) == -1)
+    {
+        vr_perror("Error modifying reactor events");
+        return VR_ERROR;
+    }
+    return VR_SUCCESS;
+}

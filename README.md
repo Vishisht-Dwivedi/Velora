@@ -49,51 +49,51 @@ The actual structure is layered like this:
 
 ```mermaid
 flowchart TD
-    A[main()] --> B[setup_signals()]
-    A --> C[vr_log_init()]
-    A --> D[vr_connection_manager_init()]
-    A --> E[vr_reactor_loop()]
+    A["main()"] --> B["setup_signals()"]
+    A --> C["vr_log_init()"]
+    A --> D["vr_connection_manager_init()"]
+    A --> E["vr_reactor_loop()"]
 
-    E --> F[vr_reactor_create()]
-    E --> G[vr_tcp_server_create()]
-    G --> H[vr_server_addr_init()]
-    G --> I[vr_socket_create()]
-    G --> J[vr_socket_set_reuseaddr()]
-    G --> K[vr_socket_bind()]
-    G --> L[vr_socket_listen()]
+    E --> F["vr_reactor_create()"]
+    E --> G["vr_tcp_server_create()"]
+    G --> H["vr_server_addr_init()"]
+    G --> I["vr_socket_create()"]
+    G --> J["vr_socket_set_reuseaddr()"]
+    G --> K["vr_socket_bind()"]
+    G --> L["vr_socket_listen()"]
 
-    E --> M[listener connection created]
-    M --> N[vr_reactor_add(listener, EPOLLIN | EPOLLET)]
+    E --> M["listener connection created"]
+    M --> N["vr_reactor_add(listener, EPOLLIN | EPOLLET)"]
 
-    E --> O[epoll_wait()]
-    O --> P{ready fd type}
+    E --> O["epoll_wait()"]
+    O --> P{"ready fd type"}
 
-    P -->|listener| Q[vr_tcp_accept()]
-    Q --> R[vr_connection_create()]
-    R --> S[client vr_connection_t]
-    S --> T[vr_socket_set_non_blocking()]
-    S --> U[vr_reactor_add(client)]
+    P -->|listener| Q["vr_tcp_accept()"]
+    Q --> R["vr_connection_create()"]
+    R --> S["client vr_connection_t"]
+    S --> T["vr_socket_set_non_blocking()"]
+    S --> U["vr_reactor_add(client)"]
 
-    P -->|client| V[vr_socket_recv_ring_buf()]
-    V --> W[read_buf ring buffer]
-    W --> X[vr_parser_poll()]
-    X --> Y[header bytes]
-    X --> Z[payload bytes]
-    Y --> AA[vr_packet_header_deserialize()]
-    Z --> AB[vr_packet_t]
+    P -->|client| V["vr_socket_recv_ring_buf()"]
+    V --> W["read_buf ring buffer"]
+    W --> X["vr_parser_poll()"]
+    X --> Y["header bytes"]
+    X --> Z["payload bytes"]
+    Y --> AA["vr_packet_header_deserialize()"]
+    Z --> AB["vr_packet_t"]
 
-    AB --> AC[vr_protocol_handle_packet()]
-    AC --> AD[conn->proto_state]
-    AC --> AE[packet type switch]
-    AE --> AF{response packet created?}
+    AB --> AC["vr_protocol_handle_packet()"]
+    AC --> AD["conn->proto_state"]
+    AC --> AE["packet type switch"]
+    AE --> AF{"response packet created?"}
 
-    AF -->|yes| AG[response vr_packet_t]
-    AF -->|no| AH[no reply object]
+    AF -->|yes| AG["response vr_packet_t"]
+    AF -->|no| AH["no reply object"]
 
-    V --> AI[disconnect handling]
-    AI --> AJ[vr_reactor_remove()]
-    AI --> AK[close(fd)]
-    AI --> AL[vr_connection_destroy()]
+    V --> AI["disconnect handling"]
+    AI --> AJ["vr_reactor_remove()"]
+    AI --> AK["close(fd)"]
+    AI --> AL["vr_connection_destroy()"]
 ```
 
 ### Actual call chain in the code

@@ -124,3 +124,29 @@ vr_result_t vr_conn_ring_buf_grow(vr_connection_ring_buf_t *buf)
     buf->state = VR_CONN_RING_BUF_ACTIVE;
     return VR_SUCCESS;
 }
+
+uint32_t vr_conn_ring_buf_contiguous_read(vr_connection_ring_buf_t *buf, uint8_t **data)
+{
+    if (buf == NULL || data == NULL || buf->count == 0)
+        return 0;
+    *data = &buf->data[buf->read_pos];
+    if (buf->read_pos < buf->write_pos)
+        return buf->count;
+    return buf->capacity - buf->read_pos;
+}
+
+vr_result_t vr_conn_ring_buf_consume(vr_connection_ring_buf_t *buf, uint32_t count)
+{
+    if (buf == NULL || count > buf->count)
+        return VR_ERROR;
+    buf->read_pos = (buf->read_pos + count) % buf->capacity;
+    buf->count -= count;
+    if (buf->count == 0)
+    {
+        buf->read_pos = 0;
+        buf->write_pos = 0;
+    }
+    if (buf->state == VR_CONN_RING_BUF_FULL)
+        buf->state = VR_CONN_RING_BUF_ACTIVE;
+    return VR_SUCCESS;
+}

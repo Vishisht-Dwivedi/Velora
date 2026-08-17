@@ -105,25 +105,45 @@ vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_connection_manager_t *mana
 {
     int listen_fd = 0;
     reactor->epoll_fd = -1;
-    vr_reactor_create(reactor);
-    if ((vr_tcp_server_create(port, &listen_fd)) == VR_SUCCESS)
+    if (vr_reactor_create(reactor) != VR_SUCCESS)
     {
-        vr_log(VR_LOG_INFO, "Server Started on port: %d", port);
+        vr_log(VR_LOG_ERROR, "Failed to create reactor, aborting startup");
+        return VR_ERROR;
     }
-    if((vr_socket_set_non_blocking(listen_fd)) == VR_SUCCESS)
+    if (vr_tcp_server_create(port, &listen_fd) != VR_SUCCESS)
     {
-        vr_log(VR_LOG_INFO, "Set listening socket to non blocking");
+        vr_log(VR_LOG_ERROR, "Failed to create TCP server on port: %d", port);
+        vr_reactor_destroy(reactor);
+        return VR_ERROR;
     }
+    vr_log(VR_LOG_INFO, "Server Started on port: %d", port);
+    if (vr_socket_set_non_blocking(listen_fd) != VR_SUCCESS)
+    {
+        vr_log(VR_LOG_ERROR, "Failed to set listening socket to non blocking");
+        close(listen_fd);
+        vr_reactor_destroy(reactor);
+        return VR_ERROR;
+    }
+    vr_log(VR_LOG_INFO, "Set listening socket to non blocking");
     vr_connection_t *listener_conn = malloc(sizeof(vr_connection_t));
     if(listener_conn == NULL)
     {
         vr_perror("Malloc failed while allocating mem for listener connection in reactor loop");
+        close(listen_fd);
+        vr_reactor_destroy(reactor);
         return VR_ERROR;
     }
     memset(listener_conn, 0, sizeof(*listener_conn));
     listener_conn->net_conn.fd = listen_fd;
     listener_conn->type = VR_CONN_LISTENER;
-    vr_reactor_add(reactor, listener_conn, EPOLLIN | EPOLLET);
+    if (vr_reactor_add(reactor, listener_conn, EPOLLIN | EPOLLET) != VR_SUCCESS)
+    {
+        vr_log(VR_LOG_ERROR, "Failed to register listener socket with reactor");
+        close(listen_fd);
+        free(listener_conn);
+        vr_reactor_destroy(reactor);
+        return VR_ERROR;
+    }
 
     while (running_status == RUNNING)
     {
@@ -152,7 +172,11 @@ vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_connection_manager_t *mana
                             }
                             new_conn->type = VR_CONN_CLIENT;
                             vr_socket_set_non_blocking(new_conn->net_conn.fd);
-                            vr_reactor_add(reactor, new_conn, EPOLLIN | EPOLLET);
+                            if (vr_reactor_add(reactor, new_conn, EPOLLIN | EPOLLET) != VR_SUCCESS)
+                            {
+                                close(new_conn->net_conn.fd);
+                                vr_connection_destroy(manager, new_conn);
+                            }
                             continue;
                         }
                         if (res == VR_EMPTY) break;
@@ -169,7 +193,36 @@ vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_connection_manager_t *mana
                 case VR_CONN_CLIENT: {
                     bool disconnected = false;
                     vr_packet_t out = {0};
-                    while (true)
+                    uint32_t events = reactor->events[i].events;
+                    if (events & EPOLLOUT)
+                    {
+                        while (!vr_conn_ring_buf_empty(&ready_conn->write_buf))
+                        {
+                            uint8_t *data = NULL;
+                            uint32_t available = vr_conn_ring_buf_contiguous_read(&ready_conn->write_buf, &data);
+                            if (available == 0)
+                                break;
+                            ssize_t sent = vr_socket_send(ready_fd, data, available, MSG_NOSIGNAL);
+                            if (sent > 0)
+                            {
+                                vr_conn_ring_buf_consume(&ready_conn->write_buf, (uint32_t)sent);
+                                continue;
+                            }
+                            if (sent == -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
+                                break;
+                            vr_log(VR_LOG_ERROR, "Socket write failed for fd=%d", ready_fd);
+                            vr_reactor_remove(reactor, ready_conn);
+                            close(ready_fd);
+                            vr_connection_destroy(manager, ready_conn);
+                            disconnected = true;
+                            break;
+                        }
+                        if (!disconnected && vr_conn_ring_buf_empty(&ready_conn->write_buf))
+                            vr_reactor_modify(reactor, ready_conn, EPOLLIN | EPOLLET);
+                    }
+                    if (!disconnected && (events & EPOLLIN))
+                    {
+                        while (true)
                     {
                         ssize_t len = vr_socket_recv_ring_buf(ready_fd, &(ready_conn->read_buf), 0);
                         if (len == 0)
@@ -179,7 +232,7 @@ vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_connection_manager_t *mana
                             close(ready_fd);
                             if (vr_connection_destroy(manager, ready_conn) == VR_ERROR)
                             {
-                                continue;
+                                vr_log(VR_LOG_ERROR, "Failed to clean up connection state for fd=%d", ready_fd);
                             }
                             disconnected = true;
                             break;
@@ -212,8 +265,9 @@ vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_connection_manager_t *mana
                                 close(ready_fd);
                                 if (vr_connection_destroy(manager, ready_conn) == VR_ERROR)
                                 {
-                                    continue;
+                                    vr_log(VR_LOG_ERROR, "Failed to clean up connection state for fd=%d", ready_fd);
                                 }
+                                disconnected = true;
                                 break;
                             }
                         }
@@ -224,11 +278,50 @@ vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_connection_manager_t *mana
                         vr_packet_t *response = vr_protocol_handle_packet(ready_conn, &out);
                         if (response != NULL)
                         {
-                            
+                            size_t packet_size = sizeof(vr_packet_header_t) + response->header.payload_len;
+                            uint8_t *serialized = malloc(packet_size);
+                            if (serialized == NULL)
+                            {
+                                vr_log(VR_LOG_ERROR, "Failed to allocate response buffer for serialization");
+                                free(response->payload);
+                                free(response);
+                                break;
+                            }
+                            vr_packet_serialize(response, serialized);
+                            bool write_buf_failed = false;
+                            for (size_t j = 0; j < packet_size && !write_buf_failed; j++)
+                            {
+                                while (vr_conn_ring_buf_push(&ready_conn->write_buf, serialized[j]) == VR_ERROR)
+                                {
+                                    if (ready_conn->write_buf.state == VR_CONN_RING_BUF_UNALLOC)
+                                    {
+                                        if (vr_conn_ring_buf_init(&ready_conn->write_buf) == VR_ERROR)
+                                        {
+                                            write_buf_failed = true;
+                                            break;
+                                        }
+                                    } else if (ready_conn->write_buf.state == VR_CONN_RING_BUF_FULL){
+                                        if (vr_conn_ring_buf_grow(&ready_conn->write_buf) == VR_ERROR)
+                                        {
+                                            write_buf_failed = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            free(serialized);
+                            free(response->payload);
+                            free(response);
+                            if (write_buf_failed)
+                                vr_log(VR_LOG_ERROR, "Failed to buffer response for fd=%d", ready_fd);
+                            else
+                                vr_reactor_modify(reactor, ready_conn, EPOLLIN | EPOLLOUT | EPOLLET);
                         }
                     }
                     break;
                 }
+                }
+                    
             }
         }
         reactor->ready_events = 0;
@@ -245,13 +338,13 @@ vr_result_t vr_reactor_loop(vr_reactor_t *reactor, vr_connection_manager_t *mana
 }
 vr_result_t vr_reactor_modify(vr_reactor_t *reactor, vr_connection_t *conn, uint32_t events)
 {
-    if(reactor == NULL || conn == NULL)
+    if (reactor == NULL || conn == NULL)
         return VR_ERROR;
 
     struct epoll_event ev = {0};
     ev.events = events;
     ev.data.ptr = conn;
-    if(epoll_ctl(reactor->epoll_fd, EPOLL_CTL_MOD, conn->net_conn.fd, &ev) == -1)
+    if (epoll_ctl(reactor->epoll_fd, EPOLL_CTL_MOD, conn->net_conn.fd, &ev) == -1)
     {
         vr_perror("Error modifying reactor events");
         return VR_ERROR;

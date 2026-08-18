@@ -13,6 +13,7 @@ vr_result_t vr_conn_ring_buf_init(vr_connection_ring_buf_t *buf)
     if(buf->data == NULL)
     {
         vr_perror("Memory allocation for ring buf failed");
+        buf->capacity = 0;
         return VR_ERROR;
     }
     buf->count = 0;

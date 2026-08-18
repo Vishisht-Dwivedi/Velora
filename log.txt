@@ -10,12 +10,12 @@ INFO: Set listening socket to non blocking
 INFO: Added element to reactor loop successfully
 INFO: Retrieved 1 events
 INFO: Ready fd: 5
-INFO: Connection to client established for client ip: 127.0.0.1:37096 at fd: 6
+INFO: Connection to client established for client ip: 127.0.0.1:60494 at fd: 6
 INFO: Added element to reactor loop successfully
 INFO: Retrieved 1 events
 INFO: Ready fd: 6
 WARN: Buffer full or uninitialized
-INFO: Ring buffer allocated cap=4096
+INFO: Read ring buffer allocated cap=4096 fd=6
 INFO: header size: 8
 INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
 INFO: Packet validated
@@ -24,17 +24,256 @@ INFO: Retrieved 1 events
 INFO: Ready fd: 6
 INFO: Retrieved 1 events
 INFO: Ready fd: 6
-INFO: Client Disconnected
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 8, stream: 0, flags: 0, payload_len: 30
+INFO: Packet validated
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Payload: velora-fragmented-payload-test
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Client disconnected fd=6
 INFO: Removed element from reactor loop successfully
 INFO: Removed connection from manager successfully
+INFO: Closed connection fd=6 (client disconnected)
 INFO: Retrieved 1 events
 INFO: Ready fd: 5
-INFO: Connection to client established for client ip: 127.0.0.1:57746 at fd: 6
+INFO: Connection to client established for client ip: 127.0.0.1:60502 at fd: 6
 INFO: Added element to reactor loop successfully
 INFO: Retrieved 1 events
 INFO: Ready fd: 6
 WARN: Buffer full or uninitialized
-INFO: Ring buffer allocated cap=4096
+INFO: Read ring buffer allocated cap=4096 fd=6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Client disconnected fd=6
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=6 (client disconnected)
+INFO: Retrieved 1 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:60518 at fd: 6
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+WARN: Buffer full or uninitialized
+INFO: Grew read ring buffer cap=8192 fd=6
+WARN: Buffer full or uninitialized
+INFO: Grew read ring buffer cap=16384 fd=6
+WARN: Buffer full or uninitialized
+INFO: Grew read ring buffer cap=32768 fd=6
+WARN: Buffer full or uninitialized
+INFO: Grew read ring buffer cap=65536 fd=6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 8, stream: 0, flags: 0, payload_len: 50000
+INFO: Packet validated
+INFO: Payload: 
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Client disconnected fd=6
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=6 (client disconnected)
+INFO: Retrieved 1 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:60528 at fd: 6
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=6
 INFO: header size: 8
 INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
 INFO: Packet validated
@@ -60,16 +299,425 @@ INFO: Ready fd: 6
 INFO: Retrieved 1 events
 INFO: Ready fd: 6
 INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 5, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 6, stream_id: 2, flags: 0, payload_len: 0
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 8, stream: 1, flags: 0, payload_len: 17
+INFO: Packet validated
+INFO: Payload: hello on stream A
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: header size: 8
 INFO: magic: 22409, ver: 1, type: 7, stream: 1, flags: 0, payload_len: 0
 INFO: Packet validated
-INFO: Response packet: magic: 22409, version 1, type: 226, stream_id: 1, flags: 0, payload_len: 0
+INFO: Response packet: magic: 22409, version 1, type: 0, stream_id: 1, flags: 0, payload_len: 0
 INFO: Retrieved 1 events
 INFO: Ready fd: 6
 INFO: Retrieved 1 events
 INFO: Ready fd: 6
-INFO: Client Disconnected
+INFO: Client disconnected fd=6
 INFO: Removed element from reactor loop successfully
 INFO: Removed connection from manager successfully
+INFO: Closed connection fd=6 (client disconnected)
+INFO: Retrieved 1 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:60534 at fd: 6
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: header size: 8
+INFO: magic: 57005, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+WARN: Packet not validatded
+WARN: Protocol violation on fd=6
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=6 (protocol error)
+INFO: Retrieved 1 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:60538 at fd: 6
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: header size: 8
+INFO: magic: 22409, ver: 9, type: 3, stream: 0, flags: 0, payload_len: 0
+WARN: Packet not validatded
+WARN: Protocol violation on fd=6
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=6 (protocol error)
+INFO: Retrieved 1 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:60552 at fd: 6
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 99, stream: 0, flags: 0, payload_len: 0
+WARN: Packet not validatded
+WARN: Protocol violation on fd=6
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=6 (protocol error)
+INFO: Retrieved 1 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:60554 at fd: 6
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 240, payload_len: 0
+WARN: Packet not validatded
+WARN: Protocol violation on fd=6
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=6 (protocol error)
+INFO: Retrieved 1 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:60562 at fd: 6
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:60564 at fd: 7
+INFO: Added element to reactor loop successfully
+INFO: Connection to client established for client ip: 127.0.0.1:60578 at fd: 8
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:60592 at fd: 9
+INFO: Added element to reactor loop successfully
+INFO: Connection to client established for client ip: 127.0.0.1:60604 at fd: 10
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:60612 at fd: 11
+INFO: Added element to reactor loop successfully
+INFO: Connection to client established for client ip: 127.0.0.1:60628 at fd: 12
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 1 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:60642 at fd: 13
+INFO: Added element to reactor loop successfully
+INFO: Connection to client established for client ip: 127.0.0.1:60658 at fd: 14
+INFO: Added element to reactor loop successfully
+INFO: Retrieved 5 events
+INFO: Ready fd: 5
+INFO: Connection to client established for client ip: 127.0.0.1:60666 at fd: 15
+INFO: Added element to reactor loop successfully
+INFO: Ready fd: 6
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 7
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=7
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 8
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=8
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 9
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=9
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Retrieved 10 events
+INFO: Ready fd: 10
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=10
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 11
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=11
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 12
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=12
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 13
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=13
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 6
+INFO: Ready fd: 7
+INFO: Ready fd: 14
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=14
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 8
+INFO: Ready fd: 9
+INFO: Ready fd: 15
+WARN: Buffer full or uninitialized
+INFO: Read ring buffer allocated cap=4096 fd=15
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 1, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 2, stream_id: 0, flags: 0, payload_len: 0
+INFO: Retrieved 6 events
+INFO: Ready fd: 10
+INFO: Ready fd: 11
+INFO: Ready fd: 12
+INFO: Ready fd: 13
+INFO: Ready fd: 14
+INFO: Ready fd: 15
+INFO: Retrieved 1 events
+INFO: Ready fd: 6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 5, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 6, stream_id: 1, flags: 0, payload_len: 0
+INFO: Retrieved 3 events
+INFO: Ready fd: 7
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 5, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 6, stream_id: 1, flags: 0, payload_len: 0
+INFO: Ready fd: 6
+INFO: Ready fd: 8
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 5, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 6, stream_id: 1, flags: 0, payload_len: 0
+INFO: Retrieved 5 events
+INFO: Ready fd: 7
+INFO: Ready fd: 9
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 5, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 6, stream_id: 1, flags: 0, payload_len: 0
+INFO: Ready fd: 10
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 5, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 6, stream_id: 1, flags: 0, payload_len: 0
+INFO: Ready fd: 11
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 5, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 6, stream_id: 1, flags: 0, payload_len: 0
+INFO: Ready fd: 8
+INFO: Retrieved 7 events
+INFO: Ready fd: 12
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 5, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 6, stream_id: 1, flags: 0, payload_len: 0
+INFO: Ready fd: 13
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 5, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 6, stream_id: 1, flags: 0, payload_len: 0
+INFO: Ready fd: 9
+INFO: Ready fd: 14
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 5, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 6, stream_id: 1, flags: 0, payload_len: 0
+INFO: Ready fd: 10
+INFO: Ready fd: 11
+INFO: Ready fd: 15
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 5, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 6, stream_id: 1, flags: 0, payload_len: 0
+INFO: Retrieved 4 events
+INFO: Ready fd: 12
+INFO: Ready fd: 13
+INFO: Ready fd: 14
+INFO: Ready fd: 15
+INFO: Retrieved 2 events
+INFO: Ready fd: 6
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 7
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: Retrieved 10 events
+INFO: Ready fd: 8
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 9
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 6
+INFO: Ready fd: 10
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 11
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 12
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 13
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 14
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 15
+INFO: header size: 8
+INFO: magic: 22409, ver: 1, type: 3, stream: 0, flags: 0, payload_len: 0
+INFO: Packet validated
+INFO: Response packet: magic: 22409, version 1, type: 4, stream_id: 0, flags: 0, payload_len: 0
+INFO: Ready fd: 7
+INFO: Retrieved 8 events
+INFO: Ready fd: 8
+INFO: Ready fd: 9
+INFO: Ready fd: 10
+INFO: Ready fd: 11
+INFO: Ready fd: 12
+INFO: Ready fd: 13
+INFO: Ready fd: 14
+INFO: Ready fd: 15
+INFO: Retrieved 6 events
+INFO: Ready fd: 6
+INFO: Client disconnected fd=6
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=6 (client disconnected)
+INFO: Ready fd: 7
+INFO: Client disconnected fd=7
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=7 (client disconnected)
+INFO: Ready fd: 8
+INFO: Client disconnected fd=8
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=8 (client disconnected)
+INFO: Ready fd: 9
+INFO: Client disconnected fd=9
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=9 (client disconnected)
+INFO: Ready fd: 10
+INFO: Client disconnected fd=10
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=10 (client disconnected)
+INFO: Ready fd: 11
+INFO: Client disconnected fd=11
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=11 (client disconnected)
+INFO: Retrieved 4 events
+INFO: Ready fd: 12
+INFO: Client disconnected fd=12
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=12 (client disconnected)
+INFO: Ready fd: 13
+INFO: Client disconnected fd=13
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=13 (client disconnected)
+INFO: Ready fd: 14
+INFO: Client disconnected fd=14
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=14 (client disconnected)
+INFO: Ready fd: 15
+INFO: Client disconnected fd=15
+INFO: Removed element from reactor loop successfully
+INFO: Removed connection from manager successfully
+INFO: Closed connection fd=15 (client disconnected)
 INFO: Closing epoll
 INFO: Removed element from reactor loop successfully
 INFO: Closed epoll file descriptor

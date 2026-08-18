@@ -10,16 +10,14 @@ vr_packet_t *vr_protocol_handle_packet(vr_connection_t *conn, vr_packet_t *pkt)
         vr_log(VR_LOG_ERROR, "Null packet or conn object passed to handler");
         return NULL;
     }
-
     vr_packet_t *response = NULL;
-
     switch (conn->proto_state)
     {
         case VR_PROTO_INIT:
         {
             if (pkt->header.type == VR_PKT_CONNECT) 
             {
-                response = malloc(sizeof(vr_packet_t));
+                response = calloc(1, sizeof(vr_packet_t));
                 response->header.flags = VR_FLAG_NONE;
                 response->header.magic = VR_MAGIC;
                 response->header.payload_len = 0;
@@ -42,7 +40,7 @@ vr_packet_t *vr_protocol_handle_packet(vr_connection_t *conn, vr_packet_t *pkt)
         }
         case VR_PROTO_ESTABILISHED:
         {
-            response = malloc(sizeof(vr_packet_t));
+            response = calloc(1, sizeof(vr_packet_t));
             response->header.flags = VR_FLAG_NONE;
             response->header.magic = VR_MAGIC;
             response->header.stream_id = pkt->header.stream_id;

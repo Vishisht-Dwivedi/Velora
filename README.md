@@ -1,142 +1,111 @@
 # Velora
 
-Velora is a C-based event-driven TCP protocol engine built around Linux `epoll`, non-blocking sockets, per-connection state, dynamic ring buffers, and a custom binary packet protocol.
+**Velora** is a C-based, event-driven TCP protocol engine built around Linux `epoll`, non-blocking sockets, per-connection state, dynamic ring buffers, and a custom binary protocol.
 
-The current repository represents a **working baseline protocol/runtime engine** rather than a finished distributed messaging platform. The baseline already covers connection management, edge-triggered I/O, incremental packet parsing, protocol state transitions, buffered outbound writes, stream bookkeeping, malformed-packet rejection, and concurrent connection isolation.
+The repository currently contains a **working single-threaded protocol/runtime engine**. It is intentionally not yet a distributed broker, RPC framework, or multi-worker runtime. The current milestone is a fast, testable control implementation for packet parsing, buffering, reactor behavior, connection scaling, and later multicore/networking experiments.
+
+## Current status
+
+| Area | Current state |
+|---|---|
+| Transport | Non-blocking TCP |
+| Event model | Single-threaded Linux `epoll` + `EPOLLET` |
+| Connection state | Per-connection object + pointer-based connection manager |
+| Receive buffering | Dynamic ring buffer; `recvmsg()` can fill two physical regions directly |
+| Parser | Incremental header/payload FSM with bulk contiguous fast paths |
+| Write buffering | Ring buffer with `reserve`/`commit` + contiguous serialization |
+| Protocol | 8-byte binary header, 9 packet types, flags, per-connection stream bookkeeping |
+| Streams | 256-bit bitmap (`uint64_t streams_bitmap[4]`) |
+| Concurrency validation | 10,000 concurrent TCP connections |
+| Protocol regression | **9/9 checks passed** |
+| End-to-end throughput | **~298k completed PING/PONG transactions/s** @ 10k connections |
+| Packet throughput | **~1.90M sustained PUBLISH pkt/s** @ 10k connections; observed peak ~2.3M pkt/s |
+| Multithreading | Not implemented |
+| Broker/pub-sub | Not implemented |
+| Backpressure subsystem | Not implemented |
+| Kernel bypass | Not implemented |
+
+Performance figures are black-box measurements from external C clients on a local Linux test environment; they are benchmark results, not hardware-independent limits.
 
 ---
 
-## Current architecture
+# Architecture
 
 ```mermaid
 flowchart TB
-    MAIN["src/main.c"] --> SIGNAL["signal handling"]
-    MAIN --> MANAGER["connection manager"]
-    MAIN --> REACTOR["reactor loop"]
-
-    REACTOR --> EPOLL["epoll / EPOLLET"]
+    MAIN["src/main.c"] --> MANAGER["connection manager"]
+    MAIN --> REACTOR["single-threaded reactor"]
+    REACTOR --> EPOLL["Linux epoll / EPOLLET"]
     REACTOR --> LISTENER["TCP listener"]
 
     LISTENER --> ACCEPT["accept()"]
     ACCEPT --> CONN["vr_connection_t"]
 
-    REACTOR --> READ["EPOLLIN"]
-    REACTOR --> WRITE["EPOLLOUT"]
-
     CONN --> READBUF["read_buf"]
     CONN --> WRITEBUF["write_buf"]
+    CONN --> PARSERSTATE["parser state"]
+    CONN --> PROTOSTATE["protocol state"]
+    CONN --> STREAMS["streams_bitmap[4]"]
 
+    EPOLL --> IN["EPOLLIN"]
+    EPOLL --> OUT["EPOLLOUT"]
+
+    IN --> READ["reactor_drain_reads()"]
     READ --> READBUF
-    READBUF --> PARSER["packet parser"]
-    PARSER --> PROTOCOL["protocol FSM"]
+    READBUF --> PARSER["vr_parser_poll()"]
+    PARSER --> PROTOCOL["vr_protocol_handle_packet()"]
+
     PROTOCOL --> RESPONSE["response packet"]
-
-    RESPONSE --> SERIALIZE["packet serializer"]
-    SERIALIZE --> WRITEBUF
-    WRITEBUF --> WRITE
+    RESPONSE --> ENQUEUE["reactor_enqueue_response()"]
+    ENQUEUE --> WRITEBUF
+    WRITEBUF --> OUT
+    OUT --> WRITE["reactor_drain_writes()"]
 ```
 
-### Runtime layers
-
-```text
-Process
-  └── main.c
-      ├── signal handling
-      ├── logger
-      ├── connection manager
-      └── reactor
-
-Reactor
-  ├── epoll lifecycle
-  ├── listener handling
-  ├── client read draining
-  ├── client write draining
-  ├── packet processing
-  └── connection shutdown
-
-Networking
-  ├── TCP socket creation / bind / listen
-  ├── accept
-  ├── non-blocking sockets
-  ├── recvmsg()/recv()
-  └── send()
-
-Connection
-  ├── vr_connection_t
-  ├── manager slot tracking
-  ├── read buffer
-  ├── write buffer
-  ├── parser state
-  ├── protocol state
-  └── stream bitmap
-
-Protocol
-  ├── packet format
-  ├── incremental parser
-  ├── header validation
-  ├── protocol FSM
-  └── response generation
-```
-
----
-
-## End-to-end data path
-
-The current reactor is split into explicit operations rather than keeping the entire client path inside one large event-loop branch.
+## Runtime data path
 
 ```mermaid
 flowchart TD
-    A["epoll_wait()"] --> B{"ready connection"}
+    A["epoll_wait()"] --> B{"ready object"}
 
-    B -->|"listener"| C["reactor_handle_listener_event()"]
-    C --> D["vr_tcp_accept()"]
-    D --> E["vr_connection_create()"]
-    E --> F["epoll ADD: EPOLLIN | EPOLLET"]
+    B -->|"listener"| C["accept + connection creation"]
+    C --> D["epoll ADD: EPOLLIN | EPOLLET"]
 
-    B -->|"client"| G["reactor_handle_client_event()"]
+    B -->|"client"| E["reactor_handle_client_event()"]
 
-    G --> H["EPOLLIN"]
-    H --> I["reactor_drain_reads()"]
-    I --> J["recvmsg()/recv()"]
-    J --> K["read_buf"]
+    E --> F["EPOLLIN"]
+    F --> G["reactor_drain_reads()"]
+    G --> H["recvmsg()/recv()"]
+    H --> I["read_buf"]
+    I --> J["reactor_process_packets()"]
+    J --> K["vr_parser_poll()"]
+    K --> L["vr_protocol_handle_packet()"]
 
-    K --> L["reactor_process_packets()"]
-    L --> M["vr_parser_poll()"]
-    M --> N["vr_protocol_handle_packet()"]
+    L --> M{"response?"}
+    M -->|"yes"| N["reactor_enqueue_response()"]
+    N --> O["write_buf"]
+    O --> P["EPOLLOUT"]
+    P --> Q["reactor_drain_writes()"]
+    Q --> R["contiguous bytes"]
+    R --> S["send()"]
+    S --> T["consume(sent bytes)"]
 
-    N --> O["response packet"]
-    O --> P["reactor_enqueue_response()"]
-    P --> Q["serialize"]
-    Q --> R["write_buf"]
-    R --> S["EPOLLOUT"]
-
-    S --> T["reactor_drain_writes()"]
-    T --> U["peek contiguous bytes"]
-    U --> V["send()"]
-    V --> W["consume(sent bytes)"]
-    W --> R
-
-    V -->|"EAGAIN"| S
-    W -->|"buffer empty"| X["disable EPOLLOUT"]
-
-    I -->|"disconnect/error"| Y["reactor_close_connection()"]
-    T -->|"write error"| Y
+    F -->|"disconnect/error"| X["close connection"]
+    P -->|"write error"| X
 ```
 
-The important event-loop invariant is:
+The core invariant is:
 
 ```text
 EPOLLIN  -> drain reads until EAGAIN
 EPOLLOUT -> drain writes until EAGAIN
 ```
 
-The sockets are non-blocking, so neither operation waits for the network. `epoll` provides the concurrency by multiplexing many connections through the same reactor thread.
-
 ---
 
 # Packet format
 
-Velora currently uses a fixed 8-byte packet header:
+Velora uses a fixed 8-byte header:
 
 ```text
 +--------+---------+------+----------+-------+-------------+
@@ -145,14 +114,12 @@ Velora currently uses a fixed 8-byte packet header:
 +--------+---------+------+----------+-------+-------------+
 ```
 
-Current protocol constants:
-
 ```text
-VR_MAGIC              = 0x5789
-VR_PROTOCOL_VERSION   = 1
+VR_MAGIC            = 0x5789
+VR_PROTOCOL_VERSION = 1
 ```
 
-Maximum payload length is represented by the 16-bit `payload_len` field.
+`payload_len` is 16-bit, allowing wire payload descriptions up to 65,535 bytes.
 
 ### Packet types
 
@@ -168,7 +135,7 @@ Maximum payload length is represented by the 16-bit `payload_len` field.
 | 8 | `VR_PKT_PUBLISH` |
 | 9 | `VR_PKT_ERROR` |
 
-### Packet flags
+### Flags
 
 ```text
 VR_FLAG_NONE       = 0
@@ -176,56 +143,68 @@ VR_FLAG_COMPRESSED = 1 << 0
 VR_FLAG_ACK_REQ    = 1 << 1
 ```
 
-Only the defined flag bits are accepted by the parser.
+Unknown flag bits are rejected by the parser.
 
 ---
 
-# Packet / parser FSM
+# Packet/parser FSM
 
-The packet parser is incremental because TCP is a byte stream rather than a message boundary transport.
+TCP does not preserve application packet boundaries, so the parser is incremental.
 
 ```mermaid
 stateDiagram-v2
     [*] --> HEADER_WAIT
 
-    HEADER_WAIT --> HEADER_WAIT: read_buf < header size
+    HEADER_WAIT --> HEADER_WAIT: fewer than 8 bytes
     HEADER_WAIT --> VALIDATE: header available
 
-    VALIDATE --> ERROR: invalid magic/version/type/flags
-    VALIDATE --> HEADER_WAIT: valid header + payload_len == 0
-    VALIDATE --> PAYLOAD_WAIT: valid header + payload_len > 0
+    VALIDATE --> ERROR: bad magic/version/type/flags
+    VALIDATE --> HEADER_WAIT: valid + payload_len == 0
+    VALIDATE --> PAYLOAD_WAIT: valid + payload_len > 0
 
-    PAYLOAD_WAIT --> PAYLOAD_WAIT: read_buf < payload_len
+    PAYLOAD_WAIT --> PAYLOAD_WAIT: incomplete payload
     PAYLOAD_WAIT --> EMIT_PACKET: payload available
 
     EMIT_PACKET --> HEADER_WAIT
     ERROR --> [*]
 ```
 
-### Parser behavior
+### Current parser path
 
-1. Wait until at least one complete header is available.
-2. Consume and deserialize the header.
-3. Validate:
-   - magic
-   - version
-   - packet type range
-   - flag bits
-4. If there is no payload, emit the packet immediately.
-5. Otherwise wait for the complete payload.
-6. Allocate the packet payload and copy bytes from the connection ring buffer.
-7. Return a complete `vr_packet_t`.
-8. Reset to `VR_PARSER_HEADER_WAIT`.
+```text
+HEADER_WAIT
+    |
+    +-- contiguous header --> deserialize directly from ring
+    |
+    +-- wrapped header ----> peek_n() + small stack buffer
+    |
+    +-- consume header once
+    v
+VALIDATE
+    |
+    +-- invalid --> VR_ERROR -> reactor closes connection
+    |
+    +-- no payload --> emit packet
+    |
+    v
+PAYLOAD_WAIT
+    |
+    +-- contiguous payload --> one memcpy()
+    |
+    +-- wrapped payload ----> peek_n() / at most two copies
+    |
+    +-- consume payload once
+    v
+HEADER_WAIT
+```
 
-Malformed headers return `VR_ERROR`; the reactor treats that as a protocol violation and closes the connection.
+The current Stage 1 optimization removes byte-by-byte header/payload extraction from the parser while preserving the existing FSM and packet ownership model.
 
 ---
 
 # Protocol FSM
 
-Protocol state is stored per connection in `vr_connection_t`.
-
-Current protocol states:
+Protocol state is stored per connection.
 
 ```text
 VR_PROTO_INIT
@@ -234,321 +213,174 @@ VR_PROTO_ESTABILISHED
 VR_PROTO_CLOSED
 ```
 
-The server-side runtime currently enters through `VR_PROTO_INIT` and transitions to the established state after a valid `CONNECT`.
+The current server-side path starts in `VR_PROTO_INIT` and enters the established state after `CONNECT`.
 
 ```mermaid
 stateDiagram-v2
     [*] --> INIT
 
-    INIT --> ESTABLISHED: VR_PKT_CONNECT
-    INIT --> INIT: other packet
+    INIT --> ESTABLISHED: CONNECT
+    CONNECTING --> ESTABLISHED: CONNECT_ACK
 
-    CONNECTING --> ESTABLISHED: VR_PKT_CONNECT_ACK
+    ESTABLISHED --> ESTABLISHED: PING / PONG
+    ESTABLISHED --> ESTABLISHED: STREAM_OPEN / OPEN_ACK
+    ESTABLISHED --> ESTABLISHED: PUBLISH / no reply
+    ESTABLISHED --> ESTABLISHED: ERROR / no reply
 
-    ESTABLISHED --> ESTABLISHED: VR_PKT_PING / PONG
-    ESTABLISHED --> ESTABLISHED: VR_PKT_STREAM_OPEN / OPEN_ACK
-    ESTABLISHED --> ESTABLISHED: VR_PKT_PUBLISH / no reply
-    ESTABLISHED --> ESTABLISHED: VR_PKT_ERROR / no reply
-
-    ESTABLISHED --> CLOSED: VR_PKT_STREAM_CLOSE\nwhen active_streams reaches 0
+    ESTABLISHED --> CLOSED: STREAM_CLOSE + last active stream
 ```
 
-### Current protocol behavior
+### Streams
 
-#### `CONNECT`
+Each connection contains:
 
-```text
-INIT
-  ↓
-CONNECT
-  ↓
-CONNECT_ACK
-  ↓
-ESTABLISHED
+```c
+uint8_t active_streams;
+uint64_t streams_bitmap[4];
 ```
 
-The server establishes the default stream bookkeeping at this point.
+The bitmap provides a 256-bit stream allocation space.
 
-#### `PING`
+`STREAM_OPEN` allocates the next free stream bit and returns `STREAM_OPEN_ACK`.
 
-```text
-ESTABLISHED
-  ↓
-PING
-  ↓
-PONG
-```
+`STREAM_CLOSE` clears the stream bit and decrements `active_streams`. When the last stream is removed, the protocol state becomes `VR_PROTO_CLOSED`.
 
-#### `STREAM_OPEN`
-
-```text
-ESTABLISHED
-  ↓
-STREAM_OPEN
-  ↓
-allocate next free stream bit
-  ↓
-STREAM_OPEN_ACK(stream_id)
-```
-
-Streams are tracked using:
-
-```text
-uint64_t streams_bitmap[4]
-uint8_t  active_streams
-```
-
-which gives the current implementation a 256-bit stream allocation space.
-
-#### `PUBLISH`
-
-`PUBLISH` is parsed and passed through the protocol layer without generating an application-level response in the current baseline.
-
-#### `STREAM_CLOSE`
-
-A stream-close clears the relevant stream bit and decrements `active_streams`.
-
-When the last active stream is closed, the connection transitions to:
-
-```text
-VR_PROTO_CLOSED
-```
-
-The exact application-level acknowledgement semantics for `STREAM_CLOSE` remain a protocol-design item for the next iteration.
+`STREAM_CLOSE` acknowledgement semantics are still not finalized.
 
 ---
 
-# Reactor architecture
+# Ring buffers
 
-The reactor has been modularized into separate responsibilities.
-
-### Core reactor functions
+Each connection owns:
 
 ```text
-vr_reactor_create()
-vr_reactor_destroy()
-vr_reactor_add()
-vr_reactor_modify()
-vr_reactor_wait()
-vr_reactor_remove()
-vr_reactor_loop()
-```
-
-### Internal client-path helpers
-
-```text
-reactor_handle_client_event()
-reactor_drain_reads()
-reactor_process_packets()
-reactor_enqueue_response()
-reactor_drain_writes()
-reactor_close_connection()
-```
-
-### Listener/bootstrap helpers
-
-```text
-reactor_handle_listener_event()
-reactor_bootstrap_listener()
-reactor_shutdown()
-```
-
-This separation keeps event notification separate from the actual read, process, write, and lifecycle operations.
-
----
-
-# Read path
-
-The receive side uses per-connection ring buffers.
-
-```text
-EPOLLIN
-  ↓
-reactor_drain_reads()
-  ↓
-vr_socket_recv_ring_buf()
-  ↓
 read_buf
-  ↓
-keep receiving until EAGAIN
+write_buf
 ```
 
-The receive helper uses `recvmsg()` when the writable region wraps so that the kernel can fill up to two contiguous ring-buffer regions without an intermediate linearization buffer.
-
-The ring buffer starts at:
+The current ring representation tracks:
 
 ```text
-4096 bytes
+data
+capacity
+count
+read_pos
+write_pos
+state
 ```
 
-and grows geometrically up to:
+Current capacities:
 
 ```text
-65536 bytes
+initial = 4096 bytes
+maximum = 65536 bytes
 ```
 
-when incoming data exceeds the current capacity.
+Growth is geometric up to the configured ceiling.
+
+## Receive path
+
+The socket receive helper can write directly into up to two physical ring regions with `recvmsg()`:
+
+```mermaid
+flowchart LR
+    K["kernel TCP data"] --> R["recvmsg()"]
+    R --> A["ring region 1"]
+    R --> B["ring region 2"]
+    A --> RB["read_buf"]
+    B --> RB
+    RB --> P["parser"]
+```
+
+## Bulk ring API
+
+The current ring buffer exposes:
+
+```text
+vr_conn_ring_buf_contiguous_read()
+vr_conn_ring_buf_consume()
+
+vr_conn_ring_buf_peek_n()
+vr_conn_ring_buf_contiguous_write()
+vr_conn_ring_buf_commit()
+vr_conn_ring_buf_reserve()
+```
+
+The hot paths now operate on **spans and byte counts**, rather than repeated `push()`/`pop()` calls.
 
 ---
 
 # Write path
 
-Outgoing responses are serialized into the per-connection `write_buf`.
+The response enqueue path now mirrors the bulk read design:
 
-```text
-response packet
-      ↓
-vr_packet_serialize()
-      ↓
-write_buf
-      ↓
-enable EPOLLOUT
-      ↓
-reactor_drain_writes()
-      ↓
-peek contiguous bytes
-      ↓
-send()
-      ↓
-consume exactly bytes accepted by kernel
-      ↓
-buffer empty?
-   ├── yes → disable EPOLLOUT
-   └── no  → wait for next writable event
+```mermaid
+flowchart LR
+    A["response packet"] --> B["packet_size"]
+    B --> C["reserve(packet_size)"]
+
+    C --> D{"whole packet contiguous?"}
+
+    D -->|"yes"| E["serialize directly into write ring"]
+    E --> F["commit(packet_size)"]
+
+    D -->|"no"| G["serialize to temporary staging buffer"]
+    G --> H["copy region 1"]
+    H --> I["commit(region 1)"]
+    I --> J["copy region 2"]
+    J --> K["commit(region 2)"]
+
+    F --> L["EPOLLOUT"]
+    K --> L
+    L --> M["drain_writes()"]
+    M --> N["send()"]
+    N --> O["consume(sent bytes)"]
 ```
 
-Partial writes are handled by retaining unsent bytes in the ring buffer.
+The old byte-at-a-time response serialization path has been removed from the hot path.
 
-The write-side ring buffer exposes:
-
-```text
-vr_conn_ring_buf_contiguous_read()
-vr_conn_ring_buf_consume()
-```
-
-so the reactor can avoid copying pending output before calling `send()`.
+The fast path can serialize a response directly into its final ring-buffer location. The wrap path uses at most two bulk copies.
 
 ---
 
 # Connection management
 
-`vr_connection_t` currently contains:
+`vr_connection_t` contains:
 
 ```text
-vr_net_conn_t                  net_conn
-vr_connection_status_t         status
-vr_connection_type_t           type
-size_t                         slot
-vr_connection_ring_buf_t       read_buf
-vr_connection_ring_buf_t       write_buf
-vr_parser_t                    parser
-vr_protocol_state_t            proto_state
-uint8_t                        active_streams
-uint64_t                       streams_bitmap[4]
+vr_net_conn_t
+status
+type
+slot
+read_buf
+write_buf
+parser
+proto_state
+active_streams
+streams_bitmap[4]
 ```
 
-Connections are stored as pointers in a dynamic manager array:
+The manager stores stable pointers:
 
 ```text
 vr_connection_t **slots
 ```
 
-This is important because epoll stores the connection pointer in:
+because epoll keeps the connection pointer in:
 
 ```c
 ev.data.ptr = conn;
 ```
 
-The manager therefore moves pointers between slots rather than embedding connection objects directly inside a reallocating array.
-
-Connection teardown also frees:
-
-```text
-read_buf.data
-write_buf.data
-vr_connection_t
-```
-
-and updates the manager's slot bookkeeping.
+Connection teardown removes the fd from epoll, closes the socket, frees ring-buffer storage, and updates the manager's slot bookkeeping.
 
 ---
 
-# TCP / socket layer
+# Tests
 
-The networking layer is split between:
+## `tests/overall_single.sh`
 
-- `src/net/tcp_server.c`
-- `src/net/socket_utils.c`
-
-Responsibilities include:
-
-```text
-socket()
-SO_REUSEADDR
-bind()
-listen()
-accept()
-fcntl(O_NONBLOCK)
-recv()
-recvmsg()
-send()
-```
-
-The listener and accepted client sockets are all driven through the reactor using edge-triggered epoll.
-
-The current default server port is:
-
-```text
-22409
-```
-
----
-
-# Logging and errors
-
-Debug builds define:
-
-```text
-VR_DEBUG
-```
-
-and write logs to:
-
-```text
-log.txt
-```
-
-The debug logger currently uses a mutex around log writes.
-
-Release builds disable the logger implementation.
-
-Build flags are currently:
-
-```text
-Debug:
--DVR_DEBUG -g
-
-Release:
--O3
-```
-
-The Makefile also enables:
-
-```text
--Wall -Wextra -pthread
-```
-
----
-
-# Tests currently in the repository
-
-The repository contains executable shell-based integration/stress tests under [`tests`](tests).
-
-### `tests/overall_single.sh`
-
-Single-connection FSM smoke test.
-
-Exercises:
+Single-connection protocol smoke test:
 
 ```text
 CONNECT -> CONNECT_ACK
@@ -557,270 +389,177 @@ STREAM_OPEN -> STREAM_OPEN_ACK
 STREAM_CLOSE
 ```
 
-### `tests/parser_walk.sh`
+## `tests/parser_walk.sh`
 
-Broad parser/protocol integration suite.
-
-Current checks include:
+Current regression suite:
 
 ```text
-fragmented header + payload assembly
-pipelined burst
-large payload / ring-buffer growth
-full FSM walk
-invalid magic
-invalid version
-unknown packet type
-invalid flag bits
-multiple concurrent connections
+1. fragmented header + payload
+2. pipelined burst
+3. large payload / ring-buffer growth
+4. full FSM walk
+5. bad magic
+6. bad version
+7. unknown packet type
+8. invalid flags
+9. concurrent connection isolation
 ```
 
-The current baseline has reached:
+Current result:
 
 ```text
 9/9 checks passed
 ```
 
-### `tests/conn_count.sh`
+## `tests/conn_count.sh`
 
-Creates and holds a configurable number of concurrent TCP connections.
+Concurrent connection holding test.
 
-Default:
-
-```text
-10000
-```
-
-### `tests/churn.sh`
-
-Sequential connect/disconnect churn.
-
-Default:
-
-```text
-10000 cycles
-```
-
-### `tests/concurrent_churn.sh`
-
-Opens a configurable number of simultaneous connections and holds them until interrupted.
-
-Default:
-
-```text
-5000 connections
-```
-
-### `tests/slowloris.sh`
-
-Keeps a large group of TCP clients alive and periodically attempts small writes to exercise long-lived connections.
-
-Default:
-
-```text
-1000 clients
-```
-
----
-
-# Running Velora
-
-## Build
-
-Debug build:
-
-```bash
-make debug
-```
-
-Release build:
-
-```bash
-make release
-```
-
-The binary is produced at:
-
-```text
-build/velora
-```
-
-## Start
-
-```bash
-./build/velora
-```
-
-The server listens on:
-
-```text
-127.0.0.1:22409
-```
-
-for local tests.
-
-## Run protocol regression
-
-```bash
-./tests/overall_single.sh
-./tests/parser_walk.sh
-```
-
-## Run concurrent connection test
+Typical run:
 
 ```bash
 ./tests/conn_count.sh 10000
 ```
 
-## Run sequential churn
+## `tests/churn.sh`
+
+Repeated sequential connect/disconnect cycles.
 
 ```bash
 ./tests/churn.sh 10000
 ```
 
-## Run concurrent connections
+## `tests/concurrent_churn.sh`
+
+Concurrent connection churn workload.
 
 ```bash
 ./tests/concurrent_churn.sh 5000
 ```
 
-## Run slow-client style workload
+## `tests/slowloris.sh`
+
+Protocol-aware slow-client workload. It sends valid fragmented protocol data rather than arbitrary bytes, so it exercises the current incremental parser FSM.
 
 ```bash
-./tests/slowloris.sh 1000
+./tests/slowloris.sh 10000
 ```
 
 ---
 
-# Baseline verification
+# Black-box performance benchmarks
 
-The current test suite has already verified the following classes of behavior:
+The performance clients do **not** modify Velora. A message is counted only after externally observable protocol behavior confirms processing.
+
+## PING/PONG throughput
+
+Source:
 
 ```text
-✅ CONNECT / ACK end-to-end path
-✅ PING / PONG
-✅ STREAM_OPEN / STREAM_OPEN_ACK
-✅ fragmented packet delivery
-✅ pipelined packets
-✅ large payload handling
-✅ ring-buffer growth
-✅ malformed packet rejection
-✅ parser reset / resynchronization
-✅ per-connection FSM isolation
-✅ concurrent connections
-✅ buffered response writes
-✅ edge-triggered read draining
-✅ edge-triggered write draining
+tests/throughput_pingpong.c
 ```
 
-This establishes the current system as a **functional baseline** for subsequent performance and systems research.
+Build:
+
+```bash
+gcc -D_POSIX_C_SOURCE=200809L -O3 -Wall -Wextra -Wpedantic \
+    -o tests/throughput_pingpong tests/throughput_pingpong.c
+```
+
+Run:
+
+```bash
+./tests/throughput_pingpong 127.0.0.1 22409 10000 16 30
+```
+
+A transaction counts only when a valid `PONG` reaches the client.
+
+Observed baseline:
+
+```text
+10,000 concurrent connections
+~298k completed PING/PONG transactions/s
+0 errors
+0 connection loss
+```
+
+This is an end-to-end request/response metric.
+
+## Packet-processing throughput
+
+Source:
+
+```text
+tests/packet_throughput.c
+```
+
+Workload:
+
+```text
+CONNECT
+   |
+PUBLISH × N
+   |
+PING marker
+   |
+PONG
+```
+
+The client only counts a sequence after the marker PONG arrives, so the PUBLISH packets preceding the marker must have crossed the parser/protocol path first.
+
+Build:
+
+```bash
+gcc -D_POSIX_C_SOURCE=200809L -O3 -Wall -Wextra -Wpedantic \
+    -o tests/packet_throughput tests/packet_throughput.c
+```
+
+Run:
+
+```bash
+./tests/packet_throughput 127.0.0.1 22409 10000 64 64 30
+```
+
+Observed repeated baseline:
+
+```text
+Connections              : 10,000
+PUBLISH packets/sequence : 64
+Payload                  : 64 bytes
+Sustained PUBLISH rate   : ~1.90M pkt/s
+Total confirmed rate     : ~1.93M pkt/s
+Observed peak            : ~2.3M pkt/s
+Errors                   : 0
+Connection loss          : 0
+```
+
+The sustained rate is the meaningful baseline; the early peak is reported separately because the run settles into steady state.
+
+This is a **black-box protocol-path throughput benchmark**, not an isolated parser microbenchmark.
 
 ---
 
-# Current limitations / known protocol-design gaps
+# Benchmark interpretation
 
-Velora is intentionally still a baseline engine.
-
-The current implementation does **not** yet include:
+Keep these metrics separate:
 
 ```text
-worker thread runtime
-MPSC queues
-backpressure policies
-broker/pub-sub subsystem
-RPC layer
-memory pools
-zero-copy message pipeline
-custom scheduler
-kernel-bypass networking
-AF_XDP / DPDK integration
-advanced observability
-multi-node distributed routing
+PING/PONG throughput
+    = completed application request/response transactions
+
+PUBLISH packet throughput
+    = confirmed PUBLISH packets in
+      PUBLISH...PUBLISH -> PING -> PONG sequences
+
+Connection concurrency
+    = simultaneously established TCP connections
+
+Slow-client resilience
+    = ability to maintain many connections
+      while data arrives incrementally
 ```
 
-These are future research/engineering directions rather than claims about the current implementation.
-
-One protocol item also remains intentionally visible:
-
-```text
-STREAM_CLOSE acknowledgement semantics
-```
-
-The current baseline updates stream bookkeeping and can transition the connection to `VR_PROTO_CLOSED` when the last active stream closes, but a dedicated close acknowledgement packet is not currently defined.
-
----
-
-# Current baseline architecture
-
-The current system can be summarized as:
-
-```text
-             ┌───────────────────────────┐
-             │        Velora Server      │
-             └─────────────┬─────────────┘
-                           │
-                    edge-triggered
-                       epoll loop
-                           │
-            ┌──────────────┴──────────────┐
-            │                             │
-         EPOLLIN                       EPOLLOUT
-            │                             │
-      drain socket                 drain write_buf
-            │                             │
-        read_buf                    send until EAGAIN
-            │                             │
-      packet parser                    consume
-            │
-       protocol FSM
-            │
-      response packet
-            │
-       serialize
-            │
-        write_buf
-```
-
-This is the baseline on which optimization and research work should be measured.
-
----
-
-# Research direction
-
-The baseline intentionally provides a clean control implementation for later experimentation.
-
-Potential next-stage areas include:
-
-```text
-1. protocol parsing / serialization cost
-2. ring-buffer efficiency
-3. memory allocation and pooling
-4. zero-copy message handling
-5. reactor scheduling
-6. MPSC worker queues
-7. CPU/core scalability
-8. backpressure
-9. batching
-10. kernel-bypass networking
-11. AF_XDP / DPDK
-12. observability and performance instrumentation
-```
-
-The intended workflow is:
-
-```text
-baseline
-   ↓
-measure
-   ↓
-identify bottleneck
-   ↓
-change one subsystem
-   ↓
-benchmark
-   ↓
-compare against baseline
-```
+Do not compare these numbers as if they measured the same workload.
 
 ---
 
@@ -868,20 +607,180 @@ Velora/
 │   ├── concurrent_churn.sh
 │   ├── conn_count.sh
 │   ├── overall_single.sh
+│   ├── packet_throughput.c
 │   ├── parser_walk.sh
-│   └── slowloris.sh
+│   ├── slowloris.sh
+│   ├── throughput.sh
+│   ├── throughput_c.c
+│   └── throughput_pingpong.c
 │
 ├── Makefile
 ├── LICENSE
 └── README.md
 ```
 
+The repository may also contain locally generated binaries such as `build/velora` and compiled benchmark clients.
+
+---
+
+# Build
+
+Debug:
+
+```bash
+make debug
+```
+
+Release:
+
+```bash
+make release
+```
+
+The Makefile uses:
+
+```text
+Debug   : -DVR_DEBUG -g
+Release : -O3
+Common  : -Wall -Wextra -Iinclude -pthread
+```
+
+The production benchmark path should use the release build.
+
+---
+
+# Run
+
+```bash
+make release
+./build/velora
+```
+
+Default local test address:
+
+```text
+127.0.0.1:22409
+```
+
+Regression:
+
+```bash
+./tests/overall_single.sh
+./tests/parser_walk.sh
+```
+
+Connections:
+
+```bash
+./tests/conn_count.sh 10000
+```
+
+Packet benchmark:
+
+```bash
+./tests/packet_throughput 127.0.0.1 22409 10000 64 64 30
+```
+
+PING/PONG benchmark:
+
+```bash
+./tests/throughput_pingpong 127.0.0.1 22409 10000 16 30
+```
+
+---
+
+# Known limitations
+
+The current engine does **not** yet include:
+
+```text
+worker-thread runtime
+MPSC queues
+multicore reactor scaling
+broker/pub-sub subsystem
+RPC subsystem
+general backpressure policies
+memory pools / arenas
+true borrowed-payload zero-copy pipeline
+custom scheduler
+kernel-bypass networking
+AF_XDP / DPDK integration
+multi-node routing
+distributed state
+production-grade observability
+```
+
+Current protocol/data-plane limitations include:
+
+```text
+maximum ring capacity: 65536 bytes
+maximum wire packet: 65543 bytes
+PUBLISH currently produces no application response
+STREAM_CLOSE acknowledgement semantics are not finalized
+parsed payloads are still heap-owned and copied out of the read ring
+```
+
+---
+
+# Development direction
+
+The current baseline is intentionally optimized incrementally:
+
+```mermaid
+flowchart LR
+    A["Correct single-threaded baseline"]
+    --> B["Bulk ring-buffer read/write paths"]
+    --> C["Benchmark + profile"]
+    --> D["Allocation / copy optimization"]
+    --> E["Multicore execution"]
+    --> F["Backpressure + broker"]
+    --> G["Zero-copy message pipeline"]
+    --> H["Kernel-bypass experiments"]
+```
+
+The engineering loop is:
+
+```text
+measure
+   ↓
+identify bottleneck
+   ↓
+change one subsystem
+   ↓
+regression test
+   ↓
+benchmark
+   ↓
+compare against baseline
+```
+
+The current single-threaded reactor remains the control implementation for future multicore and networking experiments.
+
 ---
 
 # Status
 
-**Baseline engine: functional**
+**Current milestone: optimized single-threaded protocol/runtime baseline.**
 
-The current milestone is deliberately focused:
+```text
+✓ non-blocking TCP
+✓ edge-triggered epoll reactor
+✓ stable per-connection state
+✓ dynamic ring buffers
+✓ direct kernel -> ring receive path
+✓ bulk parser header handling
+✓ bulk parser payload extraction
+✓ bulk response enqueue path
+✓ incremental packet FSM
+✓ protocol FSM
+✓ 256-bit stream bookkeeping
+✓ malformed packet rejection
+✓ fragmented packet handling
+✓ pipelined packet handling
+✓ 10,000-connection validation
+✓ 9/9 parser/FSM regression checks
+✓ black-box PING/PONG throughput benchmark
+✓ black-box packet-processing throughput benchmark
+```
 
-> Make the transport, buffering, parser, protocol FSM, and reactor behavior correct and measurable before introducing the next layer of performance-oriented systems research.
+The next major architectural step is **multicore execution**, built on top of this measured single-threaded baseline.

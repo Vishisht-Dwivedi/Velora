@@ -9,14 +9,28 @@ vr_result_t vr_parser_poll(vr_parser_t *parser, vr_connection_t *conn, vr_packet
         if (vr_conn_ring_buf_size(&conn->read_buf) < sizeof(vr_packet_header_t))
             return VR_EMPTY;
 
-        //consumer.. fills in order
-        uint8_t header_bytes[8];
-        for (uint_fast8_t i = 0; i < 8; i++)
+        uint8_t *contig = NULL;
+        uint32_t contig_len = vr_conn_ring_buf_contiguous_read(&conn->read_buf, &contig);
+
+        if (contig_len >= sizeof(vr_packet_header_t))
         {
-            if (vr_conn_ring_buf_pop(&conn->read_buf, &header_bytes[i]) == VR_ERROR)
-                return VR_ERROR;
+            // Fast path: header lies fully within one contiguous region,
+            // deserialize straight from the ring, no copy.
+            vr_packet_header_deserialize(&parser->current_header, contig);
         }
-        vr_packet_header_deserialize(&parser->current_header, header_bytes);
+        else
+        {
+            // Wrap path: header straddles the physical end of the ring,
+            // flatten it into a small stack buffer first.
+            uint8_t header_bytes[sizeof(vr_packet_header_t)];
+            if (vr_conn_ring_buf_peek_n(&conn->read_buf, header_bytes, sizeof(vr_packet_header_t)) == VR_ERROR)
+                return VR_ERROR;
+            vr_packet_header_deserialize(&parser->current_header, header_bytes);
+        }
+
+        if (vr_conn_ring_buf_consume(&conn->read_buf, sizeof(vr_packet_header_t)) == VR_ERROR)
+            return VR_ERROR;
+
         vr_log(VR_LOG_INFO, "header size: %zu", sizeof(vr_packet_header_t));
         vr_log(VR_LOG_INFO,
                 "magic: %d, ver: %d, type: %d, stream: %d, flags: %d, payload_len: %d",
@@ -60,24 +74,45 @@ vr_result_t vr_parser_poll(vr_parser_t *parser, vr_connection_t *conn, vr_packet
 
     if (parser->state == VR_PARSER_PAYLOAD_WAIT)
     {
-        if (vr_conn_ring_buf_size(&conn->read_buf) < parser->current_header.payload_len)
+        uint32_t payload_len = parser->current_header.payload_len;
+
+        if (vr_conn_ring_buf_size(&conn->read_buf) < payload_len)
             return VR_EMPTY;
-        out->payload = malloc(parser->current_header.payload_len);
+        out->payload = malloc(payload_len);
         if (out->payload == NULL)
         {
             vr_perror("Allocation error while parsing payload");
             return VR_ERROR;
         }
-        for (uint_fast16_t i = 0; i < parser->current_header.payload_len; i++)
+
+        uint8_t *contig = NULL;
+        uint32_t contig_len = vr_conn_ring_buf_contiguous_read(&conn->read_buf, &contig);
+
+        if (contig_len >= payload_len)
         {
-            if (vr_conn_ring_buf_pop(&conn->read_buf, &(out->payload[i])) == VR_ERROR)
+            // Fast path: whole payload is one contiguous span, single memcpy.
+            memcpy(out->payload, contig, payload_len);
+        }
+        else
+        {
+            // Wrap path: payload straddles the physical end of the ring,
+            // flatten it with at most two memcpy()s via peek_n().
+            if (vr_conn_ring_buf_peek_n(&conn->read_buf, out->payload, payload_len) == VR_ERROR)
             {
                 free(out->payload);
                 out->payload = NULL;
                 return VR_ERROR;
             }
         }
-        vr_log(VR_LOG_INFO, "Payload: %s", out->payload);
+
+        if (vr_conn_ring_buf_consume(&conn->read_buf, payload_len) == VR_ERROR)
+        {
+            free(out->payload);
+            out->payload = NULL;
+            return VR_ERROR;
+        }
+
+        vr_log(VR_LOG_INFO, "Payload: %u", out->payload);
         out->header = parser->current_header;
         memset(&(parser->current_header), 0, sizeof(parser->current_header));
         parser->state = VR_PARSER_HEADER_WAIT;

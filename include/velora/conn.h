@@ -87,5 +87,8 @@ vr_result_t vr_conn_ring_buf_pop(vr_connection_ring_buf_t *buf, uint8_t *data);
 vr_result_t vr_conn_ring_buf_grow(vr_connection_ring_buf_t *buf);
 uint32_t vr_conn_ring_buf_contiguous_read(vr_connection_ring_buf_t *buf, uint8_t **data);
 vr_result_t vr_conn_ring_buf_consume(vr_connection_ring_buf_t *buf, uint32_t count);
-
+vr_result_t vr_conn_ring_buf_peek_n(vr_connection_ring_buf_t *buf, uint8_t *out, uint32_t len);
+uint32_t vr_conn_ring_buf_contiguous_write(vr_connection_ring_buf_t *buf, uint8_t **data);
+vr_result_t vr_conn_ring_buf_commit(vr_connection_ring_buf_t *buf, uint32_t count);
+vr_result_t vr_conn_ring_buf_reserve(vr_connection_ring_buf_t *buf, uint32_t needed);
 #endif

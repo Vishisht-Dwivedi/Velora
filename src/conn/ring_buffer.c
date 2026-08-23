@@ -151,3 +151,93 @@ vr_result_t vr_conn_ring_buf_consume(vr_connection_ring_buf_t *buf, uint32_t cou
         buf->state = VR_CONN_RING_BUF_ACTIVE;
     return VR_SUCCESS;
 }
+
+/* Copy `len` readable bytes into a flat destination without consuming them.
+ * Crosses the wrap boundary with at most two memcpy() calls. */
+vr_result_t vr_conn_ring_buf_peek_n(vr_connection_ring_buf_t *buf, uint8_t *out, uint32_t len)
+{
+    if (buf == NULL || out == NULL)
+        return VR_ERROR;
+    if (len > buf->count)
+        return VR_ERROR;
+    if (len == 0)
+        return VR_SUCCESS;
+
+    uint32_t first_chunk = buf->capacity - buf->read_pos;
+    if (first_chunk >= len)
+    {
+        memcpy(out, buf->data + buf->read_pos, len);
+    }
+    else
+    {
+        memcpy(out, buf->data + buf->read_pos, first_chunk);
+        memcpy(out + first_chunk, buf->data, len - first_chunk);
+    }
+    return VR_SUCCESS;
+}
+
+/* Return the number of contiguous writable bytes starting at write_pos, and
+ * a pointer to that region. Mirrors the region1 computation already used in
+ * vr_socket_recv_ring_buf() for the read side. Returns 0 (leaving *data
+ * untouched) when uninitialized or full. */
+uint32_t vr_conn_ring_buf_contiguous_write(vr_connection_ring_buf_t *buf, uint8_t **data)
+{
+    if (buf == NULL || data == NULL || buf->capacity == 0)
+        return 0;
+
+    uint32_t free_space = buf->capacity - buf->count;
+    if (free_space == 0)
+        return 0;
+
+    *data = &buf->data[buf->write_pos];
+
+    if (buf->write_pos >= buf->read_pos)
+    {
+        uint32_t region1_len = buf->capacity - buf->write_pos;
+        return (region1_len > free_space) ? free_space : region1_len;
+    }
+
+    uint32_t contiguous = buf->read_pos - buf->write_pos;
+    return (contiguous > free_space) ? free_space : contiguous;
+}
+
+/* Advance write_pos/count after the caller has written `count` bytes
+ * directly into the region handed back by contiguous_write(). */
+vr_result_t vr_conn_ring_buf_commit(vr_connection_ring_buf_t *buf, uint32_t count)
+{
+    if (buf == NULL)
+        return VR_ERROR;
+    if (count == 0)
+        return VR_SUCCESS;
+    if (buf->capacity == 0 || count > buf->capacity - buf->count)
+        return VR_ERROR;
+
+    buf->write_pos = (buf->write_pos + count) % buf->capacity;
+    buf->count += count;
+    if (buf->count == buf->capacity)
+        buf->state = VR_CONN_RING_BUF_FULL;
+    return VR_SUCCESS;
+}
+
+/* Initialize/grow the write buffer until at least `needed` bytes are free.
+ * Invariant: completes (or fails) before any bytes are written/committed,
+ * so a failure leaves the buffer exactly as it was found. */
+vr_result_t vr_conn_ring_buf_reserve(vr_connection_ring_buf_t *buf, uint32_t needed)
+{
+    if (buf == NULL)
+        return VR_ERROR;
+
+    if (buf->capacity == 0)
+    {
+        if (vr_conn_ring_buf_init(buf) == VR_ERROR)
+            return VR_ERROR;
+    }
+
+    while (vr_conn_ring_buf_free(buf) < needed)
+    {
+        if (vr_conn_ring_buf_grow(buf) == VR_ERROR)
+            return VR_ERROR;
+    }
+
+    return VR_SUCCESS;
+}

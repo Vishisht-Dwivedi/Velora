@@ -1,0 +1,15 @@
+#compilation command
+clang -target bpf -O2 -g -I /usr/src/linux-headers-$(uname -r)/include -I /usr/src/linux-headers-$(uname -r)/arch/x86/include/uapi -I /usr/src/linux-headers-$(uname -r)/arch/x86/generated/uapi -c <> -o <>
+
+#attach bpf prog to link
+sudo ip link set dev wlp5s0 xdp obj <>.o sec xdp
+
+#detach bpf prog 
+sudo ip link set dev wlps0 xdp off
+
+#read debug prints 
+sudo cat /sys/kernel/debug/tracing/trace    
+//reads buff once and outputs snapshot
+sudo cat /sys/kernel/debug/tracing/trace_pipe
+//opens the live reads
+

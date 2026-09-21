@@ -34,10 +34,10 @@ typedef struct
     uint8_t type; // type of packet...ex ping ack rpc etc
     uint8_t stream_id; //256 max streams multiplexed into one conn
     uint8_t flags;
-    uint16_t payload_len; // max allowed 65535 bytes 
+    uint16_t payload_len; // max allowed 65535 bytes
 } vr_packet_header_t;
 
-typedef struct 
+typedef struct
 {
     vr_packet_header_t header;
     uint8_t *payload;
@@ -48,5 +48,21 @@ uint16_t vr_decode_u16(uint8_t *buf);
 
 void vr_packet_serialize(vr_packet_t *packet, uint8_t *buff);
 void vr_packet_header_deserialize(vr_packet_header_t *header, uint8_t *data);
+
+//view exists to separate the transport semantics from the parsing semantics
+//this is all the info the packet parser must ever need... we dont care abt how
+//this got here... we can replace underlying mechanism independently...
+typedef struct
+{
+	const uint8_t *payload; //pointer to payload on the ring
+	uint16_t payload_len; //size of payload
+	uint8_t type; //same as vr_packet
+	uint8_t stream_id; //multiplexing the connection
+	uint8_t flags;
+	uint64_t conn_id; //identifier for each conn... max 2^64.. enough conns
+	uint32_t seq; //sequence number of current chunk
+	uint32_t ack; //sequence number of current ack
+	uint16_t recv_window; //parser got room for this much more data
+} vr_packet_view_t;
 
 #endif

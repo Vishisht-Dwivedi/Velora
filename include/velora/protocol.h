@@ -14,4 +14,15 @@ typedef enum
 #include "velora/conn.h"
 vr_packet_t *vr_protocol_handle_packet(vr_connection_t *conn, vr_packet_t *pkt);
 
+//FSM dictates state mapping... action tracks what should the parser do...
+typedef struct
+{
+	bool send;
+	vr_packet_type_t type;
+	uint8_t stream_id;
+	vr_packet_flag_t flags;
+	const uint8_t *payload;
+	uint16_t payload_len;
+} vr_protocol_action_t;
+
 #endif

@@ -31,7 +31,7 @@ typedef struct
 {
     uint16_t magic; // identifying packet to be that of velora
     uint8_t version;
-    uint8_t type; // type of packet...ex ping ack rpc etc
+    vr_packet_type_t type; // type of packet...ex ping ack rpc etc
     uint8_t stream_id; //256 max streams multiplexed into one conn
     uint8_t flags;
     uint16_t payload_len; // max allowed 65535 bytes
@@ -56,7 +56,7 @@ typedef struct
 {
 	const uint8_t *payload; //pointer to payload on the ring
 	uint16_t payload_len; //size of payload
-	uint8_t type; //same as vr_packet
+	vr_packet_type_t type; //same as vr_packet
 	uint8_t stream_id; //multiplexing the connection
 	uint8_t flags;
 	uint64_t conn_id; //identifier for each conn... max 2^64.. enough conns

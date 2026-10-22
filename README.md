@@ -449,6 +449,25 @@ Protocol-aware slow-client workload. It sends valid fragmented protocol data rat
 
 # Black-box performance benchmarks
 
+## Optional pinned mTCP/AF_XDP dependency build
+
+The native Velora targets do not require mTCP. To fetch the pinned mTCP source
+and build its AF_XDP artifacts locally, install the build tools plus libelf
+development files, then run:
+
+```bash
+make mtcp-af_xdp
+```
+
+The repository and revision are recorded in
+`dependencies/mtcp-af_xdp.lock`. Source and outputs stay under the ignored
+`.deps/mtcp-af_xdp/` directory. The script applies the maintained Clang
+compatibility patch in `dependencies/patches/`, builds bundled libbpf, AF_XDP
+helpers, the BPF object, and the mTCP static library. It does not install
+system-wide files, invoke `sudo`, load or attach XDP, or alter interfaces.
+This target only builds dependencies; it does not establish that an AF_XDP
+packet path works at runtime.
+
 The performance clients do **not** modify Velora. A message is counted only after externally observable protocol behavior confirms processing.
 
 ## PING/PONG throughput

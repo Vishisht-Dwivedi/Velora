@@ -1,5 +1,43 @@
 # Gated Implementation Status
 
+## Stage 0: Pinned mTCP AF_XDP build
+
+**Gate 0: PASS** on 2026-10-22 for the required build artifacts only.
+
+The dependency is pinned in `dependencies/mtcp-af_xdp.lock` to
+`https://github.com/ziten98/mtcp.git` at
+`a7a5b7b07379bfd5d290a3fcb400e06358160cf0`. The opt-in command is
+`make mtcp-af_xdp`; it clones into the ignored `.deps/mtcp-af_xdp/source/`
+directory, applies `dependencies/patches/0001-clang-remove-obsolete-c-flag.patch`,
+and builds locally. It does not install globally, invoke `sudo`, attach XDP,
+or modify network interfaces. Normal `debug` and `release` targets do not
+depend on this optional target.
+
+Build environment: GCC 16.2.1, Clang 23.1.3, LLVM `llc` 0.197, libelf 0.197.
+The required artifacts were built twice from the pinned checkout:
+
+- `afxdp/libbpf/src/libbpf.a`
+- `afxdp/common/common_params.o`
+- `afxdp/common/common_user_bpf_xdp.o`
+- `afxdp/mtcp_xdp_pktio/afxdp_kern.o`
+- `mtcp/lib/libmtcp.a`, including `afxdp_module.o` and its AF_XDP entry points
+
+Patch: remove the obsolete `-c` option from the Clang `-emit-llvm` command in
+`afxdp/common/common.mk`. Clang 23 rejects that combination under the fork's
+`-Werror`; LLVM IR generation with `-S -emit-llvm` does not need `-c`. The
+build script checks the exact pinned revision, applies the patch idempotently,
+refuses unexpected source changes, and verifies each artifact is nonempty.
+The legacy mTCP compile emits existing warnings but succeeds.
+
+Validation commands: `bash -n dependencies/build-mtcp-af_xdp.sh`,
+`make mtcp-af_xdp` (twice), `nm -A .deps/mtcp-af_xdp/source/mtcp/lib/libmtcp.a
+| rg 'afxdp_(init_handle|send_pkts|recv_pkts)|afxdp_module_func'`, and
+`git diff --check`.
+
+This pass is only dependency build reproducibility. It does not change the
+prior B0/Gate 1 status: no stock example execution, isolated TCP exchange,
+XDP attachment, or effective AF_XDP socket mode has been verified.
+
 ## A0: Protocol framing
 
 Completed on 2026-10-22. The wire header is 8 bytes in this field order:

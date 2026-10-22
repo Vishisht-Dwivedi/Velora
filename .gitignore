@@ -53,3 +53,6 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Optional pinned mTCP/AF_XDP dependency source and build outputs
+/.deps/

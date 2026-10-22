@@ -8,6 +8,9 @@ CFLAGS = -Wall -Wextra -Iinclude -pthread
 SRC = $(wildcard src/*.c src/event_loop/*.c src/core/*.c src/net/*.c src/conn/*.c src/shared/*.c src/protocol/*.c)
 
 OUT = build/velora
+TEST_PROTOCOL = build/protocol_framing
+
+.PHONY: debug release test-protocol
 
 debug:
 	mkdir -p build
@@ -18,3 +21,8 @@ release:
 	$(CC) $(CFLAGS) $(RELEASE_FLAGS) $(SRC) -o $(OUT)
 
 all: debug
+
+test-protocol:
+	mkdir -p build
+	$(CC) $(CFLAGS) $(DEBUG_FLAGS) tests/protocol_framing.c src/protocol/packet.c src/protocol/parser.c src/protocol/protocol.c src/conn/ring_buffer.c src/core/logger.c src/core/error.c -o $(TEST_PROTOCOL)
+	./$(TEST_PROTOCOL)

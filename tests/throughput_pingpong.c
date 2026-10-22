@@ -30,8 +30,11 @@
 
 #define MAX_EVENTS 1024
 #define RX_BUFFER_SIZE 4096
+#define LATENCY_HISTOGRAM_MAX_US 100000
 
 static volatile sig_atomic_t stop_requested = 0;
+static uint64_t latency_histogram[LATENCY_HISTOGRAM_MAX_US + 1];
+static uint64_t latency_samples = 0;
 
 static void handle_signal(int sig)
 {
@@ -48,6 +51,35 @@ static double monotonic_seconds(void)
 
     return (double)ts.tv_sec +
            (double)ts.tv_nsec / 1000000000.0;
+}
+
+static void record_latency(double sent_at)
+{
+    double latency_us = (monotonic_seconds() - sent_at) * 1000000.0;
+    size_t bucket = latency_us >= LATENCY_HISTOGRAM_MAX_US
+        ? LATENCY_HISTOGRAM_MAX_US
+        : (size_t)latency_us;
+
+    latency_histogram[bucket]++;
+    latency_samples++;
+}
+
+static uint32_t latency_percentile_bucket(double percentile)
+{
+    uint64_t target = (uint64_t)((double)latency_samples * percentile);
+    uint64_t cumulative = 0;
+
+    if (target == 0)
+        target = 1;
+
+    for (uint32_t bucket = 0; bucket <= LATENCY_HISTOGRAM_MAX_US; bucket++)
+    {
+        cumulative += latency_histogram[bucket];
+        if (cumulative >= target)
+            return bucket;
+    }
+
+    return LATENCY_HISTOGRAM_MAX_US;
 }
 
 static int set_nonblocking(int fd)
@@ -164,6 +196,10 @@ typedef struct
      * amount of kernel buffering.
      */
     uint32_t outstanding;
+    double *sent_at;
+    uint32_t sent_at_capacity;
+    uint32_t sent_at_head;
+    uint32_t sent_at_tail;
 
     /*
      * RX state.
@@ -345,6 +381,12 @@ static int fill_pipeline(
 
         if (n == (ssize_t)sizeof(ping_packet))
         {
+            if (client->sent_at == NULL || client->sent_at_capacity == 0)
+                return -1;
+
+            client->sent_at[client->sent_at_tail] = monotonic_seconds();
+            client->sent_at_tail =
+                (client->sent_at_tail + 1) % client->sent_at_capacity;
             client->outstanding++;
             continue;
         }
@@ -456,6 +498,9 @@ static uint64_t process_pongs(
             continue;
         }
 
+        record_latency(client->sent_at[client->sent_at_head]);
+        client->sent_at_head =
+            (client->sent_at_head + 1) % client->sent_at_capacity;
         client->outstanding--;
         client->completed++;
         completed++;
@@ -588,8 +633,30 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    if ((size_t)client_count > SIZE_MAX / pipeline / sizeof(double))
+    {
+        fprintf(stderr, "Latency timestamp allocation size overflow.\n");
+        free(clients);
+        return EXIT_FAILURE;
+    }
+
+    double *latency_storage = calloc(
+        (size_t)client_count * pipeline,
+        sizeof(*latency_storage)
+    );
+    if (latency_storage == NULL)
+    {
+        perror("calloc latency timestamps");
+        free(clients);
+        return EXIT_FAILURE;
+    }
+
     for (int i = 0; i < client_count; i++)
+    {
         clients[i].fd = -1;
+        clients[i].sent_at = latency_storage + (size_t)i * pipeline;
+        clients[i].sent_at_capacity = pipeline;
+    }
 
     /*
      * -------------------------------------------------------------
@@ -621,6 +688,8 @@ int main(int argc, char **argv)
             continue;
         }
 
+        clients[i].sent_at = latency_storage + (size_t)i * pipeline;
+        clients[i].sent_at_capacity = pipeline;
         established++;
 
         if (established % 1000 == 0 ||
@@ -985,6 +1054,17 @@ int main(int argc, char **argv)
     );
 
     printf(
+        "  RTT p50/p95/p99         : %u / %u / %u us\n",
+        latency_percentile_bucket(0.50),
+        latency_percentile_bucket(0.95),
+        latency_percentile_bucket(0.99)
+    );
+    printf(
+        "  RTT samples              : %llu (1 us buckets; >=100000 us overflow)\n",
+        (unsigned long long)latency_samples
+    );
+
+    printf(
         "  Total errors            : %llu\n",
         (unsigned long long)total_errors
     );
@@ -1032,6 +1112,7 @@ int main(int argc, char **argv)
     }
 
     close(epfd);
+    free(latency_storage);
     free(clients);
 
     return EXIT_SUCCESS;

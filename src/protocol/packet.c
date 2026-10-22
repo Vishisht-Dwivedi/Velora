@@ -18,9 +18,10 @@ uint16_t vr_decode_u16(uint8_t *buf)
 // ensure that buffer is big enough to hold payload on caller's side
 void vr_packet_serialize(vr_packet_t *packet, uint8_t *buff)
 {
-    if (packet == NULL) 
+    if (packet == NULL || buff == NULL ||
+        (packet->header.payload_len > 0 && packet->payload == NULL))
     {
-        vr_log(VR_LOG_ERROR, "Empty packet sent to serializer");
+        vr_log(VR_LOG_ERROR, "Invalid packet or buffer sent to serializer");
         return;
     }
     uint8_t *p = buff;

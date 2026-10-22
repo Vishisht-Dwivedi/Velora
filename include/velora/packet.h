@@ -4,6 +4,7 @@
 
 #define VR_MAGIC 0x5789
 #define VR_PROTOCOL_VERSION 1
+#define VR_HDR_SIZE 8
 
 typedef enum
 {

@@ -256,9 +256,7 @@ static bool reactor_enqueue_response(
         return false;
     }
 
-    size_t packet_size =
-        sizeof(vr_packet_header_t) +
-        response->header.payload_len;
+    size_t packet_size = VR_HDR_SIZE + response->header.payload_len;
 
     /*
      * The current wire format has a uint16_t payload length, so the

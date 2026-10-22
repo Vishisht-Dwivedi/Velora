@@ -6,13 +6,13 @@ vr_result_t vr_parser_poll(vr_parser_t *parser, vr_connection_t *conn, vr_packet
 {
     if (parser->state == VR_PARSER_HEADER_WAIT)
     {
-        if (vr_conn_ring_buf_size(&conn->read_buf) < sizeof(vr_packet_header_t))
+        if (vr_conn_ring_buf_size(&conn->read_buf) < VR_HDR_SIZE)
             return VR_EMPTY;
 
         uint8_t *contig = NULL;
         uint32_t contig_len = vr_conn_ring_buf_contiguous_read(&conn->read_buf, &contig);
 
-        if (contig_len >= sizeof(vr_packet_header_t))
+        if (contig_len >= VR_HDR_SIZE)
         {
             // Fast path: header lies fully within one contiguous region,
             // deserialize straight from the ring, no copy.
@@ -22,16 +22,16 @@ vr_result_t vr_parser_poll(vr_parser_t *parser, vr_connection_t *conn, vr_packet
         {
             // Wrap path: header straddles the physical end of the ring,
             // flatten it into a small stack buffer first.
-            uint8_t header_bytes[sizeof(vr_packet_header_t)];
-            if (vr_conn_ring_buf_peek_n(&conn->read_buf, header_bytes, sizeof(vr_packet_header_t)) == VR_ERROR)
+            uint8_t header_bytes[VR_HDR_SIZE];
+            if (vr_conn_ring_buf_peek_n(&conn->read_buf, header_bytes, VR_HDR_SIZE) == VR_ERROR)
                 return VR_ERROR;
             vr_packet_header_deserialize(&parser->current_header, header_bytes);
         }
 
-        if (vr_conn_ring_buf_consume(&conn->read_buf, sizeof(vr_packet_header_t)) == VR_ERROR)
+        if (vr_conn_ring_buf_consume(&conn->read_buf, VR_HDR_SIZE) == VR_ERROR)
             return VR_ERROR;
 
-        vr_log(VR_LOG_INFO, "header size: %zu", sizeof(vr_packet_header_t));
+        vr_log(VR_LOG_INFO, "header size: %u", VR_HDR_SIZE);
         vr_log(VR_LOG_INFO,
                 "magic: %d, ver: %d, type: %d, stream: %d, flags: %d, payload_len: %d",
                 parser->current_header.magic,
@@ -47,7 +47,8 @@ vr_result_t vr_parser_poll(vr_parser_t *parser, vr_connection_t *conn, vr_packet
             validated = false;
         if (parser->current_header.version != VR_PROTOCOL_VERSION)
             validated = false;
-        if (parser->current_header.type > VR_PKT_ERROR)
+        if (parser->current_header.type < VR_PKT_CONNECT ||
+            parser->current_header.type > VR_PKT_ERROR)
             validated = false;
         if (parser->current_header.flags & ~VR_PACKET_VALID_FLAGS)
             validated = false;
@@ -57,6 +58,7 @@ vr_result_t vr_parser_poll(vr_parser_t *parser, vr_connection_t *conn, vr_packet
             if (parser->current_header.payload_len == 0)
             {
                 out->header = parser->current_header;
+                out->payload = NULL;
                 parser->state = VR_PARSER_HEADER_WAIT;
                 memset(&(parser->current_header), 0, sizeof(parser->current_header));
                 return VR_SUCCESS;

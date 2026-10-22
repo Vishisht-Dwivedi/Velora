@@ -83,10 +83,10 @@ vr_packet_t *vr_protocol_handle_packet(vr_connection_t *conn, vr_packet_t *pkt)
                     uint64_t bit_neg = 1ULL << bitmap_offset;
                     conn->streams_bitmap[bitmap_idx] &= ~(bit_neg);
                     conn->active_streams--;
+                    free(response);
+                    response = NULL;
                     if (conn->active_streams == 0)
                     {
-                        free(response);
-                        response = NULL;
                         conn->proto_state = VR_PROTO_CLOSED;
                     }
                     break;

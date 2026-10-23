@@ -28,7 +28,8 @@ int vr_mtcp_runtime_accept_one(vr_mtcp_runtime_t *runtime,
 int vr_mtcp_runtime_process_events(vr_mtcp_runtime_t *runtime,
                                    int timeout_ms,
                                    size_t *bytes_received,
-                                   size_t *packets_processed);
+                                   size_t *packets_processed,
+                                   size_t *bytes_accepted_for_send);
 int vr_mtcp_runtime_destroy(vr_mtcp_runtime_t *runtime);
 
 #endif

@@ -42,6 +42,115 @@ static int close_connection(vr_mtcp_runtime_t *runtime,
     return result;
 }
 
+static int set_write_interest(vr_mtcp_runtime_t *runtime,
+                              vr_connection_t *connection,
+                              bool enabled)
+{
+    struct mtcp_epoll_event event = { 0 };
+
+    event.events = MTCP_EPOLLIN | MTCP_EPOLLET;
+    if (enabled) {
+        event.events |= MTCP_EPOLLOUT;
+    }
+    event.data.sockid = connection->net_conn.fd;
+    return mtcp_epoll_ctl(runtime->context, runtime->epoll_fd,
+                          MTCP_EPOLL_CTL_MOD, connection->net_conn.fd, &event);
+}
+
+static int queue_response(vr_connection_t *connection, vr_packet_t *response)
+{
+    size_t packet_size = VR_HDR_SIZE + response->header.payload_len;
+    uint8_t *serialized;
+    size_t offset = 0;
+
+    if (response->header.payload_len > 0 && response->payload == NULL) {
+        errno = EINVAL;
+        goto fail;
+    }
+
+    serialized = malloc(packet_size);
+    if (serialized == NULL) {
+        goto fail;
+    }
+    vr_packet_serialize(response, serialized);
+
+    if (vr_conn_ring_buf_reserve(&connection->write_buf,
+                                 (uint32_t)packet_size) == VR_ERROR) {
+        free(serialized);
+        goto fail;
+    }
+
+    while (offset < packet_size) {
+        uint8_t *region = NULL;
+        uint32_t region_size = vr_conn_ring_buf_contiguous_write(
+            &connection->write_buf, &region);
+        size_t remaining = packet_size - offset;
+        size_t chunk = region_size < remaining ? region_size : remaining;
+
+        if (region == NULL || chunk == 0) {
+            free(serialized);
+            errno = EIO;
+            goto fail;
+        }
+        memcpy(region, serialized + offset, chunk);
+        if (vr_conn_ring_buf_commit(&connection->write_buf,
+                                    (uint32_t)chunk) == VR_ERROR) {
+            free(serialized);
+            errno = EIO;
+            goto fail;
+        }
+        offset += chunk;
+    }
+
+    free(serialized);
+    free(response->payload);
+    free(response);
+    return 0;
+
+fail:
+    free(response->payload);
+    free(response);
+    return -1;
+}
+
+static int flush_connection_output(vr_mtcp_runtime_t *runtime,
+                                   vr_connection_t *connection,
+                                   size_t *bytes_accepted_for_send)
+{
+    while (!vr_conn_ring_buf_empty(&connection->write_buf)) {
+        uint8_t *data = NULL;
+        uint32_t available = vr_conn_ring_buf_contiguous_read(
+            &connection->write_buf, &data);
+        ssize_t sent;
+
+        if (available == 0 || data == NULL) {
+            errno = EIO;
+            return -1;
+        }
+
+        sent = mtcp_write(runtime->context, connection->net_conn.fd,
+                          (const char *)data, available);
+        if (sent > 0) {
+            if ((size_t)sent > available ||
+                vr_conn_ring_buf_consume(&connection->write_buf,
+                                         (uint32_t)sent) == VR_ERROR) {
+                errno = EIO;
+                return -1;
+            }
+            *bytes_accepted_for_send += (size_t)sent;
+            continue;
+        }
+
+        if (sent == 0 || errno == EAGAIN || errno == EWOULDBLOCK ||
+            errno == EINTR) {
+            return 0;
+        }
+        return -1;
+    }
+
+    return 1;
+}
+
 static int process_connection_data(vr_mtcp_runtime_t *runtime,
                                    vr_connection_t *connection,
                                    size_t *bytes_received,
@@ -88,8 +197,15 @@ static int process_connection_data(vr_mtcp_runtime_t *runtime,
                                                                   &packet);
                 free(packet.payload);
                 if (response != NULL) {
-                    free(response->payload);
-                    free(response);
+                    bool output_was_empty =
+                        vr_conn_ring_buf_empty(&connection->write_buf);
+                    if (queue_response(connection, response) < 0) {
+                        return -1;
+                    }
+                    if (output_was_empty &&
+                        set_write_interest(runtime, connection, true) < 0) {
+                        return -1;
+                    }
                 }
                 (*packets_processed)++;
             }
@@ -296,19 +412,22 @@ int vr_mtcp_runtime_accept_one(vr_mtcp_runtime_t *runtime,
 int vr_mtcp_runtime_process_events(vr_mtcp_runtime_t *runtime,
                                    int timeout_ms,
                                    size_t *bytes_received,
-                                   size_t *packets_processed)
+                                   size_t *packets_processed,
+                                   size_t *bytes_accepted_for_send)
 {
     struct mtcp_epoll_event events[VR_MTCP_EVENT_BATCH_SIZE];
     int event_count;
 
     if (runtime == NULL || runtime->context == NULL || runtime->epoll_fd < 0 ||
-        bytes_received == NULL || packets_processed == NULL || timeout_ms < -1) {
+        bytes_received == NULL || packets_processed == NULL ||
+        bytes_accepted_for_send == NULL || timeout_ms < -1) {
         errno = EINVAL;
         return -1;
     }
 
     *bytes_received = 0;
     *packets_processed = 0;
+    *bytes_accepted_for_send = 0;
     event_count = mtcp_epoll_wait(runtime->context, runtime->epoll_fd, events,
                                   VR_MTCP_EVENT_BATCH_SIZE, timeout_ms);
     if (event_count < 0) {
@@ -333,6 +452,20 @@ int vr_mtcp_runtime_process_events(vr_mtcp_runtime_t *runtime,
 
         if (receive_result != 0 || (events[index].events & close_events)) {
             close_connection(runtime, connection);
+            continue;
+        }
+
+        if (events[index].events & MTCP_EPOLLOUT) {
+            int write_result = flush_connection_output(
+                runtime, connection, bytes_accepted_for_send);
+            if (write_result < 0) {
+                close_connection(runtime, connection);
+                continue;
+            }
+            if (write_result > 0 &&
+                set_write_interest(runtime, connection, false) < 0) {
+                close_connection(runtime, connection);
+            }
         }
     }
 

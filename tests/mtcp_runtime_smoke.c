@@ -28,6 +28,10 @@ int main(int argc, char **argv)
     int accepted_socket;
     size_t bytes_received;
     size_t packets_processed;
+    size_t bytes_accepted_for_send;
+    size_t total_bytes_received = 0;
+    size_t total_packets_processed = 0;
+    size_t total_bytes_accepted_for_send = 0;
     int result = 1;
     int logger_initialized = 0;
 
@@ -64,18 +68,21 @@ int main(int argc, char **argv)
 
     printf("Accepted mTCP socket %d\n", accepted_socket);
 
-    if (vr_mtcp_runtime_process_events(&runtime, -1, &bytes_received,
-                                       &packets_processed) < 0) {
-        perror("mTCP receive processing failed");
-        goto cleanup;
-    }
-    if (bytes_received == 0) {
-        fprintf(stderr, "mTCP event contained no received bytes\n");
-        goto cleanup;
-    }
+    do {
+        if (vr_mtcp_runtime_process_events(&runtime, -1, &bytes_received,
+                                           &packets_processed,
+                                           &bytes_accepted_for_send) < 0) {
+            perror("mTCP request/response processing failed");
+            goto cleanup;
+        }
+        total_bytes_received += bytes_received;
+        total_packets_processed += packets_processed;
+        total_bytes_accepted_for_send += bytes_accepted_for_send;
+    } while (total_bytes_accepted_for_send == 0);
 
-    printf("Received %zu bytes; parsed %zu complete Velora packets\n",
-           bytes_received, packets_processed);
+    printf("Received %zu bytes; parsed %zu packets; mTCP accepted %zu response bytes\n",
+           total_bytes_received, total_packets_processed,
+           total_bytes_accepted_for_send);
     result = 0;
 
 cleanup:

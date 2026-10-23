@@ -1,0 +1,376 @@
+diff --git a/mtcp/src/include/afxdp_packet_io.h b/mtcp/src/include/afxdp_packet_io.h
+new file mode 100644
+index 0000000..8102a2d
+--- /dev/null
++++ b/mtcp/src/include/afxdp_packet_io.h
+@@ -0,0 +1,45 @@
++#ifndef AFXDP_PACKET_IO_H
++#define AFXDP_PACKET_IO_H
++
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++
++#include <bpf/xsk.h>
++
++static inline int afxdp_single_rx_queue_supported(uint32_t rx_queue_count,
++                                                   uint32_t queue_id,
++                                                   uint32_t xskmap_entries)
++{
++        return rx_queue_count == 1 && queue_id == 0 &&
++               queue_id < xskmap_entries;
++}
++
++/* libbpf reserve is all-or-nothing; keep the batch intact if it fails. */
++static inline size_t afxdp_tx_submit_pending(struct xsk_ring_prod *tx,
++                                              const uint64_t *addrs,
++                                              const uint64_t *lens,
++                                              size_t pending_count)
++{
++        uint32_t index;
++        size_t reserved;
++
++        if (pending_count == 0)
++                return 0;
++
++        reserved = xsk_ring_prod__reserve(tx, pending_count, &index);
++        if (reserved != pending_count)
++                return 0;
++
++        for (size_t packet = 0; packet < reserved; packet++) {
++                struct xdp_desc *desc = xsk_ring_prod__tx_desc(tx, index++);
++                desc->addr = addrs[packet];
++                desc->len = (__u32)lens[packet];
++                desc->options = 0;
++        }
++
++        xsk_ring_prod__submit(tx, reserved);
++        return reserved;
++}
++
++#endif
+diff --git a/mtcp/src/afxdp_module.c b/mtcp/src/afxdp_module.c
+index 3f71ebd..ad17c40 100644
+--- a/mtcp/src/afxdp_module.c
++++ b/mtcp/src/afxdp_module.c
+@@ -19,6 +19,12 @@
+ #include <time.h>
+ #include <unistd.h>
+ 
++#include <linux/if_link.h>
++#include <linux/netlink.h>
++#include <linux/rtnetlink.h>
++#include <sys/socket.h>
++
++#include "afxdp_packet_io.h"
+ #include <sys/resource.h>
+ 
+ #include <bpf/bpf.h>
+@@ -65,6 +71,10 @@ struct afxdp_private_context { //private context on mTCP
+         struct snd_list_info *snd_list;
+         struct config cfg;
+         struct pollfd fds[2];
++        int action_counters_map_fd;
++        uint64_t tx_reservation_failures;
++        uint64_t tx_submitted_packets;
++        uint64_t tx_completed_packets;
++        uint64_t rx_packets;
+ }__attribute__((aligned(__WORDSIZE)));
+ 
+ 
+@@ -72,6 +82,67 @@ struct afxdp_private_context { //private context on mTCP
+ /*----------------------------------------------------------------------------*/
++static int get_rx_queue_count(int ifindex, uint32_t *queue_count)
++{
++        struct {
++                struct nlmsghdr header;
++                struct ifinfomsg interface;
++        } request = { 0 };
++        struct sockaddr_nl address = { .nl_family = AF_NETLINK };
++        char response[4096];
++        ssize_t length;
++        int fd = socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
++
++        if (fd < 0)
++                return -1;
++
++        request.header.nlmsg_len = NLMSG_LENGTH(sizeof(request.interface));
++        request.header.nlmsg_type = RTM_GETLINK;
++        request.header.nlmsg_flags = NLM_F_REQUEST;
++        request.header.nlmsg_seq = 1;
++        request.interface.ifi_family = AF_UNSPEC;
++        request.interface.ifi_index = ifindex;
++        if (sendto(fd, &request, request.header.nlmsg_len, 0,
++                   (struct sockaddr *)&address, sizeof(address)) < 0) {
++                close(fd);
++                return -1;
++        }
++
++        length = recv(fd, response, sizeof(response), 0);
++        close(fd);
++        if (length < 0)
++                return -1;
++
++        for (struct nlmsghdr *header = (struct nlmsghdr *)response;
++             NLMSG_OK(header, (unsigned int)length);
++             header = NLMSG_NEXT(header, length)) {
++                struct ifinfomsg *interface;
++                struct rtattr *attribute;
++                int remaining;
++
++                if (header->nlmsg_type == NLMSG_ERROR) {
++                        errno = EPROTO;
++                        return -1;
++                }
++                if (header->nlmsg_type != RTM_NEWLINK)
++                        continue;
++                interface = NLMSG_DATA(header);
++                if (interface->ifi_index != ifindex)
++                        continue;
++
++                remaining = IFLA_PAYLOAD(header);
++                for (attribute = IFLA_RTA(interface);
++                     RTA_OK(attribute, remaining);
++                     attribute = RTA_NEXT(attribute, remaining)) {
++                        if (attribute->rta_type == IFLA_NUM_RX_QUEUES &&
++                            RTA_PAYLOAD(attribute) >= sizeof(*queue_count)) {
++                                memcpy(queue_count, RTA_DATA(attribute),
++                                       sizeof(*queue_count));
++                                return 0;
++                        }
++                }
++                errno = ENODATA;
++                return -1;
++        }
++
++        errno = ENODEV;
++        return -1;
++}
++
++static const char *xdp_attach_mode(uint32_t flags)
++{
++        if (flags & XDP_FLAGS_HW_MODE)
++                return "hardware";
++        if (flags & XDP_FLAGS_DRV_MODE)
++                return "driver";
++        if (flags & XDP_FLAGS_SKB_MODE)
++                return "generic";
++        return "auto";
++}
++
+ void complete_tx(struct afxdp_private_context *axpc)
+ {
+@@ -85,7 +156,7 @@ void complete_tx(struct afxdp_private_context *axpc)
+         //to receive packets (so cq is the completion queue)
+         completed = xsk_ring_cons__peek(&axpc->xsk_socket->umem->cq,
+-                                        XSK_RING_CONS__DEFAULT_NUM_DESCS,
++                                        axpc->xsk_socket->outstanding_tx,
+                                         &idx_cq);
+ 
+         if (completed > 0) {
+@@ -96,9 +167,8 @@ void complete_tx(struct afxdp_private_context *axpc)
+ 
+                 xsk_ring_cons__release(&axpc->xsk_socket->umem->cq, completed);
++                axpc->tx_completed_packets += completed;
++                axpc->xsk_socket->outstanding_tx -= completed;
+         }
+-        //m-> reset send index
+-        axpc->xsk_socket->outstanding_tx = 0;
+-        axpc->snd_list->send_index = 0;
+ }
+@@ -112,6 +182,7 @@ afxdp_init_handle(struct mtcp_thread_context *ctxt)
+         int socket_fd;
+         int ret;
+         uint32_t queue_id;
++        uint32_t rx_queue_count = 0;
+ 
+         if (num_devices_attached != 1 || ctxt->cpu != 0) {
+@@ -145,2 +216,18 @@ afxdp_init_handle(struct mtcp_thread_context *ctxt)
+                 axpc->bpf_obj = NULL;
++                queue_id = ctxt->cpu;
++                if (get_rx_queue_count(devices_attached[j], &rx_queue_count) != 0) {
++                        fprintf(stderr,
++                                "ERROR: cannot query RX queues: interface=%s ifindex=%d queue_id=%u xskmap_key=%u attach_mode=%s xdp_flags=0x%x: %s\n",
++                                ifname, devices_attached[j], queue_id, queue_id,
++                                xdp_attach_mode(axpc->cfg.xdp_flags),
++                                axpc->cfg.xdp_flags, strerror(errno));
++                        exit(EXIT_FAILURE);
++                }
++                if (!afxdp_single_rx_queue_supported(rx_queue_count, queue_id, 64)) {
++                        fprintf(stderr,
++                                "ERROR: unsupported AF_XDP RX queues: interface=%s ifindex=%d rx_queues=%u queue_id=%u xskmap_key=%u attach_mode=%s xdp_flags=0x%x; only queue 0 on a single-RX-queue interface is supported\n",
++                                ifname, devices_attached[j], rx_queue_count,
++                                queue_id, queue_id,
++                                xdp_attach_mode(axpc->cfg.xdp_flags),
++                                axpc->cfg.xdp_flags);
++                        exit(EXIT_FAILURE);
++                }
+                 axpc->cfg.ifindex = devices_attached[j]; //(enp0s8) m-> 3 if not getting correctly from mTCP
+@@ -180,0 +181,14 @@ afxdp_init_handle(struct mtcp_thread_context *ctxt)
++                        {
++                                struct bpf_map *counters =
++                                        bpf_object__find_map_by_name(axpc->bpf_obj,
++                                                                     "xdp_action_counters");
++                                axpc->action_counters_map_fd =
++                                        counters ? bpf_map__fd(counters) : -1;
++                                if (axpc->action_counters_map_fd < 0) {
++                                        TRACE_ERROR("Failed to find XDP action counter map\n");
++                                        exit(EXIT_FAILURE);
++                                }
++                        }
+@@ -231,0 +232,6 @@ afxdp_init_handle(struct mtcp_thread_context *ctxt)
++                fprintf(stderr,
++                        "AF_XDP setup: interface=%s ifindex=%d rx_queues=%u queue_id=%u xskmap_key=%u attach_mode=%s xdp_flags=0x%x\n",
++                        ifname, devices_attached[j], rx_queue_count, queue_id,
++                        queue_id, xdp_attach_mode(axpc->cfg.xdp_flags),
++                        axpc->cfg.xdp_flags);
+@@ -276,31 +377,33 @@ afxdp_send_pkts(struct mtcp_thread_context *ctxt, int nif)
+ {
+         struct afxdp_private_context *axpc;
++        size_t requested;
++        size_t submitted;
+         axpc = (struct afxdp_private_context *)ctxt->io_private_context;
++        (void)nif;
+ 
+-        uint64_t addr;
+-        uint64_t len;
+-        int ret = 0;
+-
+-        ret = xsk_ring_prod__reserve (&axpc->xsk_socket->tx, axpc->snd_list->send_index, &axpc->idx_tx);
+-
+-        for (int i = 0; i < axpc->snd_list->send_index; i++)
+-        {
+-                addr = axpc->snd_list->addrs[i];
+-                len = axpc->snd_list->lens[i];
+-
+-                //m->generate descriptors as in my notebook page 51.
+-                xsk_ring_prod__tx_desc(&axpc->xsk_socket->tx, axpc->idx_tx)->addr = addr;
+-                xsk_ring_prod__tx_desc(&axpc->xsk_socket->tx, axpc->idx_tx++)->len = len;
+-
+-                axpc->xsk_socket->outstanding_tx++;
+-
++        complete_tx(axpc);
++        requested = (size_t)axpc->snd_list->send_index;
++        submitted = afxdp_tx_submit_pending(&axpc->xsk_socket->tx,
++                                            axpc->snd_list->addrs,
++                                            axpc->snd_list->lens,
++                                            requested);
++        if (requested > 0 && submitted == 0) {
++                axpc->tx_reservation_failures++;
++                if (axpc->tx_reservation_failures == 1 ||
++                    (axpc->tx_reservation_failures &
++                     (axpc->tx_reservation_failures - 1)) == 0)
++                        fprintf(stderr,
++                                "AF_XDP TX reservation deferred: interface=%s ifindex=%d queue_id=%u xskmap_key=%u pending=%zu failures=%llu\n",
++                                axpc->cfg.ifname, axpc->cfg.ifindex,
++                                axpc->cfg.xsk_if_queue, axpc->cfg.xsk_if_queue,
++                                requested,
++                                (unsigned long long)axpc->tx_reservation_failures);
++        }
++        if (submitted > 0) {
++                axpc->snd_list->send_index = 0;
++                axpc->tx_submitted_packets += submitted;
++                axpc->xsk_socket->outstanding_tx += (int)submitted;
++        }
++
+-#ifdef NETSTAT  //m-> Review this
+-                mtcp->nstat.tx_packets[nif]++;
+-                mtcp->nstat.tx_bytes[nif] += len + ETHER_OVR;
+-#endif
+-
+-        }
+-        //m->submit batc h to tx ring
+-        xsk_ring_prod__submit(&axpc->xsk_socket->tx, axpc->snd_list->send_index);
+         //m-> send the batch
+-        complete_tx(axpc);
++        if (submitted > 0) {
++                if (xsk_ring_prod__needs_wakeup(&axpc->xsk_socket->tx))
++                        sendto(xsk_socket__fd(axpc->xsk_socket->xsk), NULL, 0,
++                               MSG_DONTWAIT, NULL, 0);
++                complete_tx(axpc);
++        }
+         return 1;
+ }
+@@ -315,6 +418,12 @@ uint8_t
+ *afxdp_get_wptr(struct mtcp_thread_context *ctxt, int nif, uint16_t pktsize){
+         struct afxdp_private_context *axpc;
+         axpc = (struct afxdp_private_context *)ctxt->io_private_context;
++
++        if (axpc->snd_list->send_index >= MAX_PKT_BURST ||
++            axpc->xsk_socket->umem_frame_free == 0) {
++                errno = ENOBUFS;
++                return NULL;
++        }
+ 
+         uint64_t addr;
+@@ -350,6 +463,7 @@ afxdp_recv_pkts(struct mtcp_thread_context *ctxt, int ifidx)
+         if (!rcvd)
+                 return 0;
++        axpc->rx_packets += rcvd;
+ 
+                 stock_frames = xsk_prod_nb_free(&axpc->xsk_socket->umem->fq,
+@@ -405,6 +519,21 @@ void
+         axpc = (struct afxdp_private_context *)ctxt->io_private_context;
+ 
++        if (axpc->action_counters_map_fd >= 0) {
++                uint32_t pass_key = 1;
++                uint32_t redirect_key = 0;
++                uint64_t passed = 0;
++                uint64_t redirected = 0;
++                bpf_map_lookup_elem(axpc->action_counters_map_fd, &pass_key, &passed);
++                bpf_map_lookup_elem(axpc->action_counters_map_fd, &redirect_key,
++                                    &redirected);
++                fprintf(stderr,
++                        "AF_XDP counters: interface=%s ifindex=%d queue_id=%u xskmap_key=%u xsk_redirect_attempts=%llu xdp_pass_no_xsk=%llu rx=%llu tx_submitted=%llu tx_completed=%llu tx_reservation_failures=%llu\n",
++                        axpc->cfg.ifname, axpc->cfg.ifindex,
++                        axpc->cfg.xsk_if_queue, axpc->cfg.xsk_if_queue,
++                        (unsigned long long)redirected,
++                        (unsigned long long)passed,
++                        (unsigned long long)axpc->rx_packets,
++                        (unsigned long long)axpc->tx_submitted_packets,
++                        (unsigned long long)axpc->tx_completed_packets,
++                        (unsigned long long)axpc->tx_reservation_failures);
++        }
++
+         if (axpc->xsk_socket != NULL && axpc->xsks_map_fd >= 0) {
+diff --git a/afxdp/mtcp_xdp_pktio/afxdp_kern.c b/afxdp/mtcp_xdp_pktio/afxdp_kern.c
+index 7ab3bd1..32195c2 100644
+--- a/afxdp/mtcp_xdp_pktio/afxdp_kern.c
++++ b/afxdp/mtcp_xdp_pktio/afxdp_kern.c
+@@ -16,6 +16,13 @@ struct bpf_map_def SEC("maps") xsks_map = {
+ };
+ 
++struct bpf_map_def SEC("maps") xdp_action_counters = {
++        .type = BPF_MAP_TYPE_ARRAY,
++        .key_size = sizeof(__u32),
++        .value_size = sizeof(__u64),
++        .max_entries = 2,
++};
++
+ 
+ SEC("xdp_sock")
+ int xdp_sock_prog(struct xdp_md *ctx)
+@@ -21,11 +28,25 @@ int xdp_sock_prog(struct xdp_md *ctx)
+ {
+ 
+     int index = ctx->rx_queue_index;
++    __u32 action_key;
++    __u64 *counter;
+     
+     //AF_XDP code
+     if (bpf_map_lookup_elem(&xsks_map, &index))
++    {
++        action_key = 0;
++        counter = bpf_map_lookup_elem(&xdp_action_counters, &action_key);
++        if (counter)
++            __sync_fetch_and_add(counter, 1);
+         return bpf_redirect_map(&xsks_map, index, 0); //this sends the pkt to user space
+-    else
+-         return XDP_PASS;
++    }
++    action_key = 1;
++    counter = bpf_map_lookup_elem(&xdp_action_counters, &action_key);
++    if (counter)
++        __sync_fetch_and_add(counter, 1);
++    return XDP_PASS;
+ }

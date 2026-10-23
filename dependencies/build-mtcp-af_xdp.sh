@@ -7,6 +7,7 @@ PATCH_FILE="$ROOT_DIR/dependencies/patches/0001-clang-remove-obsolete-c-flag.pat
 OWNERSHIP_PATCH="$ROOT_DIR/dependencies/patches/0002-xdp-ownership-and-failure-propagation.patch"
 SOCKET_MAP_PATCH="$ROOT_DIR/dependencies/patches/0003-af-xdp-socket-map-registration.patch"
 OWNED_LIFECYCLE_PATCH="$ROOT_DIR/dependencies/patches/0004-af-xdp-owned-lifecycle.patch"
+QUEUE_TX_PATCH="$ROOT_DIR/dependencies/patches/0005-af-xdp-queue-and-tx-safety.patch"
 BUILD_ROOT="$ROOT_DIR/.deps/mtcp-af_xdp"
 SOURCE_DIR="$BUILD_ROOT/source"
 
@@ -57,7 +58,7 @@ else
     exit 1
 fi
 
-if git -C "$SOURCE_DIR" apply --reverse --check "$OWNED_LIFECYCLE_PATCH"; then
+    if git -C "$SOURCE_DIR" apply --ignore-whitespace --recount --reverse --check "$OWNED_LIFECYCLE_PATCH"; then
     printf 'AF_XDP owned-lifecycle patch already applied.\n'
     if ! grep -Fq 'bpf_map_update_elem(axpc->xsks_map_fd' \
         "$SOURCE_DIR/mtcp/src/afxdp_module.c"; then
@@ -66,21 +67,32 @@ if git -C "$SOURCE_DIR" apply --reverse --check "$OWNED_LIFECYCLE_PATCH"; then
     fi
     lifecycle_already_applied=1
 else
-    if git -C "$SOURCE_DIR" apply --reverse --check "$SOCKET_MAP_PATCH"; then
+    if git -C "$SOURCE_DIR" apply --ignore-whitespace --recount --reverse --check "$SOCKET_MAP_PATCH"; then
         printf 'AF_XDP socket-map registration patch already applied.\n'
-    elif git -C "$SOURCE_DIR" apply --check "$SOCKET_MAP_PATCH"; then
-        git -C "$SOURCE_DIR" apply "$SOCKET_MAP_PATCH"
+    elif git -C "$SOURCE_DIR" apply --ignore-whitespace --recount --check "$SOCKET_MAP_PATCH"; then
+        git -C "$SOURCE_DIR" apply --ignore-whitespace --recount "$SOCKET_MAP_PATCH"
     else
         printf 'Dependency source has unexpected AF_XDP module changes; refusing to patch it.\n' >&2
         exit 1
     fi
 
-    if git -C "$SOURCE_DIR" apply --check "$OWNED_LIFECYCLE_PATCH"; then
-        git -C "$SOURCE_DIR" apply "$OWNED_LIFECYCLE_PATCH"
+    if git -C "$SOURCE_DIR" apply --ignore-whitespace --recount --check "$OWNED_LIFECYCLE_PATCH"; then
+        git -C "$SOURCE_DIR" apply --ignore-whitespace --recount "$OWNED_LIFECYCLE_PATCH"
     else
         printf 'Dependency source has unexpected AF_XDP lifecycle changes; refusing to patch it.\n' >&2
         exit 1
     fi
+fi
+
+if grep -Fq 'get_rx_queue_count' "$SOURCE_DIR/mtcp/src/afxdp_module.c" &&
+   grep -Fq 'afxdp_tx_submit_pending' "$SOURCE_DIR/mtcp/src/afxdp_module.c" &&
+   grep -Fq 'xdp_action_counters' "$SOURCE_DIR/afxdp/mtcp_xdp_pktio/afxdp_kern.c"; then
+    printf 'AF_XDP queue/TX safety patch already applied.\n'
+elif git -C "$SOURCE_DIR" apply --ignore-whitespace --unidiff-zero --recount --check "$QUEUE_TX_PATCH"; then
+    git -C "$SOURCE_DIR" apply --ignore-whitespace --unidiff-zero --recount "$QUEUE_TX_PATCH"
+else
+    printf 'Dependency source has unexpected AF_XDP queue/TX changes; refusing to patch it.\n' >&2
+    exit 1
 fi
 
 printf 'mTCP repository: %s\n' "$MTCP_REPOSITORY"

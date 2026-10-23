@@ -7,6 +7,7 @@ Maintained patches:
 - `dependencies/patches/0002-xdp-ownership-and-failure-propagation.patch`
 - `dependencies/patches/0003-af-xdp-socket-map-registration.patch`
 - `dependencies/patches/0004-af-xdp-owned-lifecycle.patch`
+- `dependencies/patches/0005-af-xdp-queue-and-tx-safety.patch`
 
 The XDP attachment helper no longer detaches an existing program to change
 attachment mode; it sets `XDP_FLAGS_UPDATE_IF_NOEXIST`. Detachment now refuses
@@ -18,17 +19,34 @@ queue before socket teardown, and requests detach only for that recorded ID.
 The build script applies all three Stage 1 patches idempotently after the Stage
 0 patch.
 
-Validation: `make mtcp-af_xdp` passed after applying all patches to the pinned
-revision, compiled the modified AF_XDP module, and rebuilt all required Stage 0
-artifacts. The builder also recognized all patches as already applied on a
-repeat run. Legacy compiler warnings remain. No XDP program was loaded and no
-interface changed.
+Queue policy: the AF_XDP runtime queries `IFLA_NUM_RX_QUEUES` before loading or
+attaching BPF and supports only one RX queue, queue 0, with XSKMAP key 0. Any
+other queue layout is rejected with interface, ifindex, queue, map-key, and
+attach-mode diagnostics. The XDP program counts XSK redirect attempts and
+`XDP_PASS` outcomes for packets with no mapped socket.
 
-**Gate 1: NOT PASSED.** The module still has incomplete `afxdp_select()`, unsafe
-TX reservation/completion handling, unverified RX/FILL frame ownership, and no
-reliable partial-initialization rollback. Teardown logs but cannot recover if
-queue unregister or owned-program detach fails. No packet-path runtime test
-has been attempted. Stop before Stage 2 or Velora integration.
+TX policy: pinned libbpf `xsk_ring_prod__reserve()` reserves the entire requested
+count or returns zero. On zero, the pending UMEM address/length batch remains
+owned by the AF_XDP sender and is retried on a later mTCP send iteration. Only
+successfully reserved descriptors are initialized and submitted; frames are
+returned to the free pool only after completion-ring entries are consumed.
+
+Focused test: `make test-af-xdp-packet-io` checks the single-queue policy and
+fills a controlled two-entry TX ring, verifies a failed reservation neither
+changes descriptors nor loses the pending frame, then verifies retry after a
+slot is released. It writes its test executable to a unique `/tmp` path.
+
+The new patch series and focused test have been checked against a clean archive
+of the pinned revision; the AF_XDP module passes syntax-only compilation with
+legacy warnings. No live XDP program was attached and no interface changed.
+
+**Gate 1: NOT PASSED.** No actual AF_XDP TCP handshake or Velora PING/PONG has
+been observed after these fixes. RX/FILL ownership and partial-initialization
+rollback remain unverified, and teardown only logs unregister/detach failures.
+The current `vxdp0` reports four RX queues and an existing XDP program; this
+single-queue patch must reject it before attachment. Do not start the smoke
+server on that interface or detach the existing program without verifying its
+owner and arranging an authorized single-queue test interface.
 
 ## Stage 0: Pinned mTCP AF_XDP build
 

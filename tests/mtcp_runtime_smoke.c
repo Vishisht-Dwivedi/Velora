@@ -78,7 +78,8 @@ int main(int argc, char **argv)
         total_bytes_received += bytes_received;
         total_packets_processed += packets_processed;
         total_bytes_accepted_for_send += bytes_accepted_for_send;
-    } while (total_bytes_accepted_for_send == 0);
+    } while (total_packets_processed < 2 ||
+             total_bytes_accepted_for_send < 2 * VR_HDR_SIZE);
 
     printf("Received %zu bytes; parsed %zu packets; mTCP accepted %zu response bytes\n",
            total_bytes_received, total_packets_processed,

@@ -670,6 +670,8 @@ int main(int argc, char **argv)
     );
 
     int established = 0;
+    int connection_failures = 0;
+    int registration_failures = 0;
 
     for (int i = 0; i < client_count; i++)
     {
@@ -679,6 +681,7 @@ int main(int argc, char **argv)
                 &clients[i]
             ) == -1)
         {
+            connection_failures++;
             fprintf(
                 stderr,
                 "[CONNECT FAIL] client=%d\n",
@@ -764,6 +767,8 @@ int main(int argc, char **argv)
             clients[i].alive = 0;
             close(clients[i].fd);
             clients[i].fd = -1;
+            clients[i].errors++;
+            registration_failures++;
         }
     }
 
@@ -784,7 +789,7 @@ int main(int argc, char **argv)
     uint64_t total_completed = 0;
     uint64_t total_errors = 0;
 
-    int active = established;
+    int active = established - registration_failures;
 
     while (!stop_requested)
     {
@@ -986,11 +991,15 @@ int main(int argc, char **argv)
     total_errors = 0;
 
     uint64_t total_client_completed = 0;
+    uint64_t in_flight_at_end = 0;
 
     for (int i = 0; i < client_count; i++)
     {
         total_client_completed +=
             clients[i].completed;
+
+        in_flight_at_end +=
+            clients[i].outstanding;
 
         total_errors +=
             clients[i].errors;
@@ -1037,6 +1046,16 @@ int main(int argc, char **argv)
     );
 
     printf(
+        "  Connection failures     : %d\n",
+        connection_failures
+    );
+
+    printf(
+        "  Registration failures   : %d\n",
+        registration_failures
+    );
+
+    printf(
         "  Pipeline depth          : %u PINGs/connection\n",
         pipeline
     );
@@ -1070,6 +1089,11 @@ int main(int argc, char **argv)
     );
 
     printf(
+        "  Requests in flight at end: %llu (not counted as completed)\n",
+        (unsigned long long)in_flight_at_end
+    );
+
+    printf(
         "  Average completions/conn: %.0f\n",
         established > 0
             ? (double)total_completed / established
@@ -1078,8 +1102,12 @@ int main(int argc, char **argv)
 
     printf("\n");
 
-    if (total_errors == 0 &&
-        active == established)
+    int benchmark_pass = total_errors == 0 &&
+                         connection_failures == 0 &&
+                         registration_failures == 0 &&
+                         active == established;
+
+    if (benchmark_pass)
     {
         printf(
             "[RESULT] PASS - "
@@ -1115,5 +1143,5 @@ int main(int argc, char **argv)
     free(latency_storage);
     free(clients);
 
-    return EXIT_SUCCESS;
+    return benchmark_pass ? EXIT_SUCCESS : EXIT_FAILURE;
 }

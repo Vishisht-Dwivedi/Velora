@@ -449,6 +449,45 @@ Protocol-aware slow-client workload. It sends valid fragmented protocol data rat
 
 # Black-box performance benchmarks
 
+## Reproducible native PING/PONG baseline
+
+Run the native release backend with a bounded loopback workload and emit one
+JSON document containing the environment, warm-up, each measured run, and
+median/variability summaries:
+
+```bash
+python3 tests/native_baseline.py \
+    --host 127.0.0.1 --port 22409 \
+    --clients 100 --pipeline 8 \
+    --warmup 2 --duration 5 --repeats 3
+```
+
+The harness runs `make release`, compiles `tests/throughput_pingpong.c` with
+`-D_POSIX_C_SOURCE=200809L -O3 -Wall -Wextra -Wpedantic`, starts the server,
+performs one warm-up, then runs identical fresh-client measurements. Connection
+setup is excluded from the client's transaction-rate interval. Each operation
+is one PING whose matching, fully validated PONG reached the client; each
+request and response is an 8-byte wire frame with no payload. The pipeline
+depth is outstanding PINGs per connection. A run fails if any requested client
+fails setup, any PONG is invalid, any connection is lost, or an error occurs.
+
+Latency percentiles are reported in microseconds from the benchmark client's
+1-microsecond histogram; the histogram combines values at or above 100,000
+microseconds in its overflow bucket. `in_flight_at_end` is reported separately
+and is not counted as completed or failed: the client does not impose a
+per-request timeout. Server CPU time is sampled from `/proc` for the full client
+invocation, including connection setup, and reported as a percentage of one
+logical CPU and of total logical CPU capacity. The server runs from a temporary
+working directory so benchmark logs do not modify repository `log.txt`; the
+client executable and server log are also temporary. JSON is written to stdout,
+so redirect it to a results file outside the repository when preserving a
+working tree matters.
+
+This harness measures the native loopback PING/PONG workload only. Do not
+compare it with PUBLISH packet throughput or mTCP/AF_XDP results as if they
+were equivalent workloads. Historical measurements below are not regenerated
+or inferred by this script.
+
 ## Optional pinned mTCP/AF_XDP dependency build
 
 The native Velora targets do not require mTCP. To fetch the pinned mTCP source

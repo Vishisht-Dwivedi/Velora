@@ -7,6 +7,27 @@ static void push_bytes(vr_connection_t *conn, const uint8_t *bytes, size_t len)
         assert(vr_conn_ring_buf_push(&conn->read_buf, bytes[i]) == VR_SUCCESS);
 }
 
+static void append_bytes(vr_connection_t *conn, const uint8_t *bytes, size_t len)
+{
+    size_t offset = 0;
+
+    assert(len <= UINT32_MAX);
+    assert(vr_conn_ring_buf_reserve(&conn->read_buf, (uint32_t)len) == VR_SUCCESS);
+    while (offset < len)
+    {
+        uint8_t *region = NULL;
+        uint32_t available = vr_conn_ring_buf_contiguous_write(
+            &conn->read_buf, &region);
+        size_t chunk = available < len - offset ? available : len - offset;
+
+        assert(region != NULL && chunk > 0);
+        memcpy(region, bytes + offset, chunk);
+        assert(vr_conn_ring_buf_commit(&conn->read_buf,
+                                       (uint32_t)chunk) == VR_SUCCESS);
+        offset += chunk;
+    }
+}
+
 static void test_serialization_and_types(void)
 {
     uint8_t wire[VR_HDR_SIZE + 0x0102] = {0};
@@ -73,6 +94,71 @@ static void test_one_byte_header_reads(void)
     free(conn.read_buf.data);
 }
 
+static void test_empty_input_and_fragmented_payload(void)
+{
+    const uint8_t wire[VR_HDR_SIZE + 4] = {
+        0x57, 0x89, 1, VR_PKT_PUBLISH, 3, 0, 0, 4,
+        0x10, 0x20, 0x30, 0x40
+    };
+    vr_connection_t conn = {0};
+    vr_packet_t parsed = {0};
+    vr_parser_t parser = {.state = VR_PARSER_HEADER_WAIT};
+
+    assert(vr_conn_ring_buf_init(&conn.read_buf) == VR_SUCCESS);
+    assert(vr_parser_poll(&parser, &conn, &parsed) == VR_EMPTY);
+    assert(vr_conn_ring_buf_empty(&conn.read_buf));
+
+    push_bytes(&conn, wire, 2);
+    assert(vr_parser_poll(&parser, &conn, &parsed) == VR_EMPTY);
+    push_bytes(&conn, wire + 2, VR_HDR_SIZE - 2);
+    assert(vr_parser_poll(&parser, &conn, &parsed) == VR_EMPTY);
+    assert(parser.state == VR_PARSER_PAYLOAD_WAIT);
+    assert(vr_conn_ring_buf_empty(&conn.read_buf));
+
+    push_bytes(&conn, wire + VR_HDR_SIZE, 1);
+    assert(vr_parser_poll(&parser, &conn, &parsed) == VR_EMPTY);
+    push_bytes(&conn, wire + VR_HDR_SIZE + 1, 2);
+    assert(vr_parser_poll(&parser, &conn, &parsed) == VR_EMPTY);
+    push_bytes(&conn, wire + VR_HDR_SIZE + 3, 1);
+    assert(vr_parser_poll(&parser, &conn, &parsed) == VR_SUCCESS);
+    assert(parsed.header.type == VR_PKT_PUBLISH);
+    assert(parsed.header.stream_id == 3);
+    assert(parsed.header.payload_len == 4);
+    assert(memcmp(parsed.payload, wire + VR_HDR_SIZE, 4) == 0);
+
+    free(parsed.payload);
+    free(conn.read_buf.data);
+}
+
+static void test_maximum_payload_length(void)
+{
+    const uint16_t payload_len = UINT16_MAX;
+    uint8_t header[VR_HDR_SIZE] = {
+        0x57, 0x89, 1, VR_PKT_PUBLISH, 4, 0, 0xff, 0xff
+    };
+    uint8_t *payload = malloc(payload_len);
+    vr_connection_t conn = {0};
+    vr_packet_t parsed = {0};
+    vr_parser_t parser = {.state = VR_PARSER_HEADER_WAIT};
+
+    assert(payload != NULL);
+    for (size_t index = 0; index < payload_len; index++)
+        payload[index] = (uint8_t)(index * 31u);
+
+    assert(vr_conn_ring_buf_init(&conn.read_buf) == VR_SUCCESS);
+    push_bytes(&conn, header, sizeof(header));
+    assert(vr_parser_poll(&parser, &conn, &parsed) == VR_EMPTY);
+    assert(parser.state == VR_PARSER_PAYLOAD_WAIT);
+    append_bytes(&conn, payload, payload_len);
+    assert(vr_parser_poll(&parser, &conn, &parsed) == VR_SUCCESS);
+    assert(parsed.header.payload_len == UINT16_MAX);
+    assert(memcmp(parsed.payload, payload, payload_len) == 0);
+
+    free(parsed.payload);
+    free(payload);
+    free(conn.read_buf.data);
+}
+
 static void test_multiple_packets_and_partial_header(void)
 {
     const uint8_t packets[VR_HDR_SIZE * 2] = {
@@ -98,18 +184,30 @@ static void test_multiple_packets_and_partial_header(void)
 
 static void test_invalid_header(void)
 {
-    const uint8_t invalid[VR_HDR_SIZE] = {
-        0x57, 0x89, 1, 0, 0, 0, 0, 0
+    const uint8_t valid[VR_HDR_SIZE] = {
+        0x57, 0x89, 1, VR_PKT_PING, 0, 0, 0, 0
     };
-    vr_connection_t conn = {0};
-    vr_packet_t parsed = {0};
-    vr_parser_t parser = {.state = VR_PARSER_HEADER_WAIT};
+    const size_t invalid_offsets[] = { 0, 2, 3, 5 };
+    const uint8_t invalid_values[] = { 0, 2, 0, 0x80 };
 
-    assert(vr_conn_ring_buf_init(&conn.read_buf) == VR_SUCCESS);
-    push_bytes(&conn, invalid, sizeof(invalid));
-    assert(vr_parser_poll(&parser, &conn, &parsed) == VR_ERROR);
-    assert(vr_conn_ring_buf_size(&conn.read_buf) == 0);
-    free(conn.read_buf.data);
+    for (size_t index = 0;
+         index < sizeof(invalid_offsets) / sizeof(invalid_offsets[0]);
+         index++)
+    {
+        uint8_t invalid[VR_HDR_SIZE];
+        vr_connection_t conn = {0};
+        vr_packet_t parsed = {0};
+        vr_parser_t parser = {.state = VR_PARSER_HEADER_WAIT};
+
+        memcpy(invalid, valid, sizeof(invalid));
+        invalid[invalid_offsets[index]] = invalid_values[index];
+        assert(vr_conn_ring_buf_init(&conn.read_buf) == VR_SUCCESS);
+        push_bytes(&conn, invalid, sizeof(invalid));
+        assert(vr_parser_poll(&parser, &conn, &parsed) == VR_ERROR);
+        assert(vr_conn_ring_buf_size(&conn.read_buf) == 0);
+        free(parsed.payload);
+        free(conn.read_buf.data);
+    }
 }
 
 static void test_wrapped_header_and_partial_payload(void)
@@ -164,6 +262,8 @@ int main(void)
     assert(VR_HDR_SIZE == 8);
     test_serialization_and_types();
     test_one_byte_header_reads();
+    test_empty_input_and_fragmented_payload();
+    test_maximum_payload_length();
     test_multiple_packets_and_partial_header();
     test_invalid_header();
     test_wrapped_header_and_partial_payload();

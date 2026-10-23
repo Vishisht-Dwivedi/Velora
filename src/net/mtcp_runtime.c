@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 
 #include <mtcp_epoll.h>
@@ -345,6 +346,7 @@ int vr_mtcp_runtime_listen(vr_mtcp_runtime_t *runtime,
     runtime->listener_socket = mtcp_socket(runtime->context, AF_INET,
                                             SOCK_STREAM, 0);
     if (runtime->listener_socket < 0 ||
+        mtcp_setsock_nonblock(runtime->context, runtime->listener_socket) < 0 ||
         mtcp_bind(runtime->context, runtime->listener_socket,
                   (const struct sockaddr *)&address, sizeof(address)) < 0 ||
         mtcp_listen(runtime->context, runtime->listener_socket, backlog) < 0) {
@@ -369,6 +371,8 @@ int vr_mtcp_runtime_accept_one(vr_mtcp_runtime_t *runtime,
     socket_id = mtcp_accept(runtime->context, runtime->listener_socket,
                             NULL, NULL);
     if (socket_id < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+            return 0;
         return -1;
     }
 

@@ -206,7 +206,13 @@ index 3f71ebd..ad17c40 100644
 +                        exit(EXIT_FAILURE);
 +                }
                  axpc->cfg.ifindex = devices_attached[j]; //(enp0s8) m-> 3 if not getting correctly from mTCP
-@@ -180,0 +181,14 @@ afxdp_init_handle(struct mtcp_thread_context *ctxt)
+@@ -186,6 +263,20 @@ afxdp_init_handle(struct mtcp_thread_context *ctxt)
+                         axpc->xsks_map_fd = bpf_map__fd(axpc->map);
+                         if (axpc->xsks_map_fd < 0) {
+                                fprintf(stderr, "ERROR: no xsks map found: %s\n",
+                                         strerror(axpc->xsks_map_fd));
+                                 exit(EXIT_FAILURE);
+                         }
 +                        {
 +                                struct bpf_map *counters =
 +                                        bpf_object__find_map_by_name(axpc->bpf_obj,
@@ -218,7 +224,15 @@ index 3f71ebd..ad17c40 100644
 +                                        exit(EXIT_FAILURE);
 +                                }
 +                        }
-@@ -231,0 +232,6 @@ afxdp_init_handle(struct mtcp_thread_context *ctxt)
+@@ -337,11 +421,17 @@ afxdp_init_handle(struct mtcp_thread_context *ctxt)
+                 queue_id = axpc->cfg.xsk_if_queue;
+                 socket_fd = xsk_socket__fd(axpc->xsk_socket->xsk);
+                 if (bpf_map_update_elem(axpc->xsks_map_fd, &queue_id, &socket_fd,
+                                         BPF_ANY) != 0) {
+                         fprintf(stderr, "ERROR: Can't register AF_XDP socket for queue %u: %s\n",
+                                 queue_id, strerror(errno));
+                         exit(EXIT_FAILURE);
+                 }
 +                fprintf(stderr,
 +                        "AF_XDP setup: interface=%s ifindex=%d rx_queues=%u queue_id=%u xskmap_key=%u attach_mode=%s xdp_flags=0x%x\n",
 +                        ifname, devices_attached[j], rx_queue_count, queue_id,

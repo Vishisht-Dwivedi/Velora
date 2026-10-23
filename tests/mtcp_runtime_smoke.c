@@ -1,9 +1,73 @@
+#define _GNU_SOURCE
+
 #include "velora/mtcp_runtime.h"
 #include "velora/logger.h"
 
 #include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+
+static volatile sig_atomic_t shutdown_requested;
+static int shutdown_pipe[2] = { -1, -1 };
+
+static void request_shutdown(int signal_number)
+{
+    const unsigned char byte = (unsigned char)signal_number;
+
+    shutdown_requested = 1;
+    if (shutdown_pipe[1] >= 0)
+        (void)write(shutdown_pipe[1], &byte, sizeof(byte));
+}
+
+static int install_shutdown_handlers(const sigset_t *previous_mask)
+{
+    struct sigaction action = { 0 };
+
+    action.sa_handler = request_shutdown;
+    sigemptyset(&action.sa_mask);
+    if (sigaction(SIGINT, &action, NULL) < 0 ||
+        sigaction(SIGTERM, &action, NULL) < 0) {
+        int saved_errno = errno;
+        close(shutdown_pipe[0]);
+        close(shutdown_pipe[1]);
+        shutdown_pipe[0] = shutdown_pipe[1] = -1;
+        errno = saved_errno;
+        return -1;
+    }
+    return pthread_sigmask(SIG_SETMASK, previous_mask, NULL);
+}
+
+static void close_shutdown_pipe(void)
+{
+    if (shutdown_pipe[0] >= 0)
+        close(shutdown_pipe[0]);
+    if (shutdown_pipe[1] >= 0)
+        close(shutdown_pipe[1]);
+    shutdown_pipe[0] = shutdown_pipe[1] = -1;
+}
+
+static int wait_for_client(vr_mtcp_runtime_t *runtime, int *accepted_socket)
+{
+    while (!shutdown_requested) {
+        int result = vr_mtcp_runtime_accept_one(runtime, accepted_socket);
+
+        if (result != 0)
+            return result;
+
+        struct pollfd wake = { .fd = shutdown_pipe[0], .events = POLLIN };
+        int poll_result = poll(&wake, 1, 50);
+        if (poll_result < 0 && errno != EINTR)
+            return -1;
+        if (poll_result > 0)
+            return 0;
+    }
+    return 0;
+}
 
 static int parse_port(const char *text, unsigned long *port)
 {
@@ -34,6 +98,9 @@ int main(int argc, char **argv)
     size_t total_bytes_accepted_for_send = 0;
     int result = 1;
     int logger_initialized = 0;
+    int runtime_initialized = 0;
+    sigset_t shutdown_signals;
+    sigset_t previous_mask;
 
     if (argc != 4 || parse_port(argv[3], &port) < 0) {
         fprintf(stderr,
@@ -48,8 +115,29 @@ int main(int argc, char **argv)
     }
     logger_initialized = 1;
 
+    if (pipe2(shutdown_pipe, O_CLOEXEC | O_NONBLOCK) < 0) {
+        perror("shutdown pipe setup failed");
+        goto cleanup;
+    }
+    sigemptyset(&shutdown_signals);
+    sigaddset(&shutdown_signals, SIGINT);
+    sigaddset(&shutdown_signals, SIGTERM);
+    int mask_result = pthread_sigmask(SIG_BLOCK, &shutdown_signals, &previous_mask);
+    if (mask_result != 0) {
+        errno = mask_result;
+        perror("blocking shutdown signals failed");
+        goto cleanup;
+    }
+
     if (vr_mtcp_runtime_init(&runtime, argv[1]) < 0) {
         perror("mTCP runtime initialization failed");
+        (void)pthread_sigmask(SIG_SETMASK, &previous_mask, NULL);
+        goto cleanup;
+    }
+    runtime_initialized = 1;
+
+    if (install_shutdown_handlers(&previous_mask) < 0) {
+        perror("shutdown handler setup failed");
         goto cleanup;
     }
 
@@ -61,7 +149,12 @@ int main(int argc, char **argv)
     printf("Listening on %s:%lu; waiting for one client\n", argv[2], port);
     fflush(stdout);
 
-    if (vr_mtcp_runtime_accept_one(&runtime, &accepted_socket) < 0) {
+    int accept_result = wait_for_client(&runtime, &accepted_socket);
+    if (accept_result == 0 && shutdown_requested) {
+        result = 0;
+        goto cleanup;
+    }
+    if (accept_result < 0) {
         perror("mTCP accept failed");
         goto cleanup;
     }
@@ -69,7 +162,7 @@ int main(int argc, char **argv)
     printf("Accepted mTCP socket %d\n", accepted_socket);
 
     do {
-        if (vr_mtcp_runtime_process_events(&runtime, -1, &bytes_received,
+        if (vr_mtcp_runtime_process_events(&runtime, 100, &bytes_received,
                                            &packets_processed,
                                            &bytes_accepted_for_send) < 0) {
             perror("mTCP request/response processing failed");
@@ -78,8 +171,9 @@ int main(int argc, char **argv)
         total_bytes_received += bytes_received;
         total_packets_processed += packets_processed;
         total_bytes_accepted_for_send += bytes_accepted_for_send;
-    } while (total_packets_processed < 2 ||
-             total_bytes_accepted_for_send < 2 * VR_HDR_SIZE);
+    } while (!shutdown_requested &&
+             (total_packets_processed < 2 ||
+              total_bytes_accepted_for_send < 2 * VR_HDR_SIZE));
 
     printf("Received %zu bytes; parsed %zu packets; mTCP accepted %zu response bytes\n",
            total_bytes_received, total_packets_processed,
@@ -87,7 +181,10 @@ int main(int argc, char **argv)
     result = 0;
 
 cleanup:
-    if (vr_mtcp_runtime_destroy(&runtime) < 0) {
+    close_shutdown_pipe();
+    if (shutdown_requested)
+        result = 0;
+    if (runtime_initialized && vr_mtcp_runtime_destroy(&runtime) < 0) {
         perror("mTCP runtime cleanup failed");
         result = 1;
     }

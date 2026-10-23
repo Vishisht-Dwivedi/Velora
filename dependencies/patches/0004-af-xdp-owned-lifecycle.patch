@@ -1,0 +1,88 @@
+diff --git a/mtcp/src/afxdp_module.c b/mtcp/src/afxdp_module.c
+--- a/mtcp/src/afxdp_module.c
++++ b/mtcp/src/afxdp_module.c
+@@ -55,4 +55,5 @@ struct afxdp_private_context { //private context on mTCP
+     struct xsk_umem_info *umem;
+ 	struct xsk_socket_info *xsk_socket;
+ 	struct bpf_object *bpf_obj;
++    uint32_t xdp_prog_id;
+     void *packet_buffer;
+@@ -112,3 +113,4 @@ afxdp_init_handle(struct mtcp_thread_context *ctxt)
+ 	int j;
+ 	int socket_fd;
++	int ret;
+ 	uint32_t queue_id;
+@@ -160,14 +162,20 @@ afxdp_init_handle(struct mtcp_thread_context *ctxt)
+ 		if (ctxt->cpu == 0){
+ 			printf("Initing XDP...\n");
+-			char ethtool_command[50];
+-	                sprintf(ethtool_command, "ethtool -L %s combined %i 2> /dev/null", ifname, CONFIG.num_cores);
+-        	        system(ethtool_command);
+-               	bzero(ethtool_command, sizeof(ethtool_command));
+-
+ 			axpc->bpf_obj = load_bpf_and_xdp_attach(&axpc->cfg);
+ 			if (!axpc->bpf_obj) {
+ 				/* Error handling done in load_bpf_and_xdp_attach() */
+ 				exit(EXIT_FAILURE);
+ 			}
++			ret = bpf_get_link_xdp_id(axpc->cfg.ifindex, &axpc->xdp_prog_id,
++						  axpc->cfg.xdp_flags);
++			if (ret != 0) {
++				fprintf(stderr, "ERROR: Can't get attached XDP program ID: %s\n",
++					strerror(-ret));
++				exit(EXIT_FAILURE);
++			}
++			if (axpc->xdp_prog_id == 0) {
++				fprintf(stderr, "ERROR: XDP attach returned no active program ID\n");
++				exit(EXIT_FAILURE);
++			}
+ 		
+ 			/* We also need to load the xsks_map */
+@@ -405,9 +423,44 @@ void
+ afxdp_destroy_handle(struct mtcp_thread_context *ctxt)
+ {
+ 	struct afxdp_private_context *axpc;
++	uint32_t queue_id;
++	int ret;
++
++	if (ctxt == NULL || ctxt->io_private_context == NULL)
++		return;
++
+ 	axpc = (struct afxdp_private_context *)ctxt->io_private_context;
+ 
+-	xsk_socket__delete(axpc->xsk_socket->xsk);
+-	xsk_umem__delete(axpc->umem->umem);
+-	xdp_link_detach(axpc->cfg.ifindex, axpc->cfg.xdp_flags, 0);
++	if (axpc->xsk_socket != NULL && axpc->xsks_map_fd >= 0) {
++		queue_id = axpc->cfg.xsk_if_queue;
++		if (bpf_map_delete_elem(axpc->xsks_map_fd, &queue_id) != 0 &&
++		    errno != ENOENT)
++			fprintf(stderr, "ERROR: Can't unregister AF_XDP queue %u: %s\n",
++				queue_id, strerror(errno));
++	}
++
++	if (axpc->xdp_prog_id != 0) {
++		ret = xdp_link_detach(axpc->cfg.ifindex, axpc->cfg.xdp_flags,
++				      axpc->xdp_prog_id);
++		if (ret != EXIT_OK)
++			fprintf(stderr, "ERROR: Can't detach owned XDP program %u\n",
++				axpc->xdp_prog_id);
++	}
++
++	if (axpc->xsk_socket != NULL) {
++		if (axpc->xsk_socket->xsk != NULL)
++			xsk_socket__delete(axpc->xsk_socket->xsk);
++		free(axpc->xsk_socket);
++	}
++	if (axpc->umem != NULL) {
++		if (axpc->umem->umem != NULL)
++			xsk_umem__delete(axpc->umem->umem);
++		free(axpc->umem);
++	}
++	free(axpc->packet_buffer);
++	free(axpc->snd_list);
++	if (axpc->bpf_obj != NULL)
++		bpf_object__close(axpc->bpf_obj);
++	free(axpc);
++	ctxt->io_private_context = NULL;
+ }

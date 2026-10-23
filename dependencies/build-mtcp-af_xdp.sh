@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCK_FILE="$ROOT_DIR/dependencies/mtcp-af_xdp.lock"
 PATCH_FILE="$ROOT_DIR/dependencies/patches/0001-clang-remove-obsolete-c-flag.patch"
+OWNERSHIP_PATCH="$ROOT_DIR/dependencies/patches/0002-xdp-ownership-and-failure-propagation.patch"
+SOCKET_MAP_PATCH="$ROOT_DIR/dependencies/patches/0003-af-xdp-socket-map-registration.patch"
+OWNED_LIFECYCLE_PATCH="$ROOT_DIR/dependencies/patches/0004-af-xdp-owned-lifecycle.patch"
 BUILD_ROOT="$ROOT_DIR/.deps/mtcp-af_xdp"
 SOURCE_DIR="$BUILD_ROOT/source"
 
@@ -43,6 +46,41 @@ elif git -C "$SOURCE_DIR" apply --check --ignore-whitespace "$PATCH_FILE"; then
 else
     printf 'Dependency source has unexpected changes; refusing to patch it.\n' >&2
     exit 1
+fi
+
+if git -C "$SOURCE_DIR" apply --reverse --check --unidiff-zero "$OWNERSHIP_PATCH"; then
+    printf 'XDP ownership patch already applied.\n'
+elif git -C "$SOURCE_DIR" apply --check --unidiff-zero "$OWNERSHIP_PATCH"; then
+    git -C "$SOURCE_DIR" apply --unidiff-zero "$OWNERSHIP_PATCH"
+else
+    printf 'Dependency source has unexpected XDP ownership changes; refusing to patch it.\n' >&2
+    exit 1
+fi
+
+if git -C "$SOURCE_DIR" apply --reverse --check "$OWNED_LIFECYCLE_PATCH"; then
+    printf 'AF_XDP owned-lifecycle patch already applied.\n'
+    if ! grep -Fq 'bpf_map_update_elem(axpc->xsks_map_fd' \
+        "$SOURCE_DIR/mtcp/src/afxdp_module.c"; then
+        printf 'Owned-lifecycle patch is present without XSKMAP registration.\n' >&2
+        exit 1
+    fi
+    lifecycle_already_applied=1
+else
+    if git -C "$SOURCE_DIR" apply --reverse --check "$SOCKET_MAP_PATCH"; then
+        printf 'AF_XDP socket-map registration patch already applied.\n'
+    elif git -C "$SOURCE_DIR" apply --check "$SOCKET_MAP_PATCH"; then
+        git -C "$SOURCE_DIR" apply "$SOCKET_MAP_PATCH"
+    else
+        printf 'Dependency source has unexpected AF_XDP module changes; refusing to patch it.\n' >&2
+        exit 1
+    fi
+
+    if git -C "$SOURCE_DIR" apply --check "$OWNED_LIFECYCLE_PATCH"; then
+        git -C "$SOURCE_DIR" apply "$OWNED_LIFECYCLE_PATCH"
+    else
+        printf 'Dependency source has unexpected AF_XDP lifecycle changes; refusing to patch it.\n' >&2
+        exit 1
+    fi
 fi
 
 printf 'mTCP repository: %s\n' "$MTCP_REPOSITORY"

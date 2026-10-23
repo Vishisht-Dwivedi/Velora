@@ -1,0 +1,43 @@
+diff --git a/mtcp/src/afxdp_module.c b/mtcp/src/afxdp_module.c
+index b0405e9f..3f71ebd9 100644
+--- a/mtcp/src/afxdp_module.c
++++ b/mtcp/src/afxdp_module.c
+@@ -109,6 +109,13 @@ afxdp_init_handle(struct mtcp_thread_context *ctxt)
+ 	char ifname[MAX_IFNAMELEN];
+ 	char nifname[MAX_IFNAMELEN];
+ 	int j;
++	int socket_fd;
++	uint32_t queue_id;
++
++	if (num_devices_attached != 1 || ctxt->cpu != 0) {
++		TRACE_ERROR("AF_XDP currently supports exactly one interface and queue 0\n");
++		exit(EXIT_FAILURE);
++	}
+ 
+ 
+ 	/* create and initialize private I/O module context */
+@@ -163,4 +170,8 @@ afxdp_init_handle(struct mtcp_thread_context *ctxt)
+ 			/* We also need to load the xsks_map */
+ 			axpc->map = bpf_object__find_map_by_name(axpc->bpf_obj, "xsks_map");
++			if (axpc->map == NULL) {
++				TRACE_ERROR("Failed to find the xsks_map BPF map\n");
++				exit(EXIT_FAILURE);
++			}
+ 			//m-> Place xsk (xdp socket) in the xdp/ebpf map
+ 			axpc->xsks_map_fd = bpf_map__fd(axpc->map);
+@@ -208,6 +219,15 @@ afxdp_init_handle(struct mtcp_thread_context *ctxt)
+ 			exit(EXIT_FAILURE);
+ 		}
+ 
++		queue_id = axpc->cfg.xsk_if_queue;
++		socket_fd = xsk_socket__fd(axpc->xsk_socket->xsk);
++		if (bpf_map_update_elem(axpc->xsks_map_fd, &queue_id, &socket_fd,
++					BPF_ANY) != 0) {
++			fprintf(stderr, "ERROR: Can't register AF_XDP socket for queue %u: %s\n",
++				queue_id, strerror(errno));
++			exit(EXIT_FAILURE);
++		}
++
+ 	}
+ 		if (axpc->cfg.xsk_poll_mode){
+                         memset(axpc->fds, 0, sizeof(axpc->fds));

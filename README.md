@@ -468,6 +468,15 @@ system-wide files, invoke `sudo`, load or attach XDP, or alter interfaces.
 This target only builds dependencies; it does not establish that an AF_XDP
 packet path works at runtime.
 
+The dependency patch set also includes partial Stage 1 safeguards: XDP
+attachment requests no-replace semantics, detach requires an expected active
+program ID, and the AF_XDP module registers its queue-0 socket in `xsks_map`.
+The module currently rejects anything other than one interface and queue 0,
+tracks its attached program ID, unregisters the socket before teardown, and no
+longer changes interface queue count. `afxdp_select()`, UMEM/RX/TX ownership,
+failure-safe initialization, and runtime behavior remain incomplete and are
+not represented as complete.
+
 The performance clients do **not** modify Velora. A message is counted only after externally observable protocol behavior confirms processing.
 
 ## PING/PONG throughput

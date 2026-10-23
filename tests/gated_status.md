@@ -1,5 +1,35 @@
 # Gated Implementation Status
 
+## Stage 1: Partial AF_XDP module hardening
+
+Maintained patches:
+
+- `dependencies/patches/0002-xdp-ownership-and-failure-propagation.patch`
+- `dependencies/patches/0003-af-xdp-socket-map-registration.patch`
+- `dependencies/patches/0004-af-xdp-owned-lifecycle.patch`
+
+The XDP attachment helper no longer detaches an existing program to change
+attachment mode; it sets `XDP_FLAGS_UPDATE_IF_NOEXIST`. Detachment now refuses
+an absent expected program ID and refuses to remove a different active ID.
+The module now checks the `xsks_map`, registers the socket fd under queue 0,
+and rejects configurations other than one interface and queue 0/context 0. It
+no longer invokes `ethtool`; it records the active program ID, unregisters the
+queue before socket teardown, and requests detach only for that recorded ID.
+The build script applies all three Stage 1 patches idempotently after the Stage
+0 patch.
+
+Validation: `make mtcp-af_xdp` passed after applying all patches to the pinned
+revision, compiled the modified AF_XDP module, and rebuilt all required Stage 0
+artifacts. The builder also recognized all patches as already applied on a
+repeat run. Legacy compiler warnings remain. No XDP program was loaded and no
+interface changed.
+
+**Gate 1: NOT PASSED.** The module still has incomplete `afxdp_select()`, unsafe
+TX reservation/completion handling, unverified RX/FILL frame ownership, and no
+reliable partial-initialization rollback. Teardown logs but cannot recover if
+queue unregister or owned-program detach fails. No packet-path runtime test
+has been attempted. Stop before Stage 2 or Velora integration.
+
 ## Stage 0: Pinned mTCP AF_XDP build
 
 **Gate 0: PASS** on 2026-10-22 for the required build artifacts only.

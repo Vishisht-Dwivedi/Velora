@@ -1,4 +1,5 @@
 #include "velora/mtcp_runtime.h"
+#include "velora/logger.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -25,7 +26,10 @@ int main(int argc, char **argv)
     vr_mtcp_runtime_t runtime = VR_MTCP_RUNTIME_INITIALIZER;
     unsigned long port;
     int accepted_socket;
+    size_t bytes_received;
+    size_t packets_processed;
     int result = 1;
+    int logger_initialized = 0;
 
     if (argc != 4 || parse_port(argv[3], &port) < 0) {
         fprintf(stderr,
@@ -34,9 +38,15 @@ int main(int argc, char **argv)
         return 2;
     }
 
+    if (vr_log_init() == VR_ERROR) {
+        fprintf(stderr, "Velora logger initialization failed\n");
+        return 1;
+    }
+    logger_initialized = 1;
+
     if (vr_mtcp_runtime_init(&runtime, argv[1]) < 0) {
         perror("mTCP runtime initialization failed");
-        return 1;
+        goto cleanup;
     }
 
     if (vr_mtcp_runtime_listen(&runtime, argv[2], (uint16_t)port, 16) < 0) {
@@ -53,12 +63,28 @@ int main(int argc, char **argv)
     }
 
     printf("Accepted mTCP socket %d\n", accepted_socket);
+
+    if (vr_mtcp_runtime_process_events(&runtime, -1, &bytes_received,
+                                       &packets_processed) < 0) {
+        perror("mTCP receive processing failed");
+        goto cleanup;
+    }
+    if (bytes_received == 0) {
+        fprintf(stderr, "mTCP event contained no received bytes\n");
+        goto cleanup;
+    }
+
+    printf("Received %zu bytes; parsed %zu complete Velora packets\n",
+           bytes_received, packets_processed);
     result = 0;
 
 cleanup:
     if (vr_mtcp_runtime_destroy(&runtime) < 0) {
         perror("mTCP runtime cleanup failed");
-        return 1;
+        result = 1;
+    }
+    if (logger_initialized) {
+        vr_log_close();
     }
 
     return result;

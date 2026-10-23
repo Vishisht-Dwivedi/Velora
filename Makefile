@@ -14,6 +14,9 @@ MTCP_CPPFLAGS = -I$(MTCP_SOURCE)/mtcp/include
 MTCP_LDLIBS = $(MTCP_SOURCE)/mtcp/lib/libmtcp.a \
 	$(MTCP_SOURCE)/afxdp/libbpf/src/libbpf.a -lelf -lnuma -lz -lm -pthread \
 	-Wl,--allow-multiple-definition
+MTCP_RUNTIME_SRCS = src/net/mtcp_runtime.c src/conn/conn.c \
+	src/conn/ring_buffer.c src/shared/utilities.c src/protocol/parser.c \
+	src/protocol/packet.c src/protocol/protocol.c src/core/logger.c src/core/error.c
 MTCP_RUNTIME_SMOKE = build/mtcp_runtime_smoke
 
 .PHONY: debug release test-protocol mtcp-af_xdp mtcp-runtime-smoke
@@ -38,4 +41,4 @@ mtcp-af_xdp:
 
 mtcp-runtime-smoke:
 	mkdir -p build
-	$(CC) $(CFLAGS) $(DEBUG_FLAGS) $(MTCP_CPPFLAGS) tests/mtcp_runtime_smoke.c src/net/mtcp_runtime.c $(MTCP_LDLIBS) -o $(MTCP_RUNTIME_SMOKE)
+	$(CC) $(CFLAGS) $(DEBUG_FLAGS) $(MTCP_CPPFLAGS) tests/mtcp_runtime_smoke.c $(MTCP_RUNTIME_SRCS) $(MTCP_LDLIBS) -o $(MTCP_RUNTIME_SMOKE)

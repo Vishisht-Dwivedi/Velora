@@ -1,0 +1,16 @@
+mkdir -p build
+gcc -Wall -Wextra -Iinclude -pthread -O3 -I.deps/mtcp-af_xdp/source/mtcp/include src/mtcp_main.c src/net/mtcp_runtime.c src/conn/conn.c src/conn/ring_buffer.c src/shared/utilities.c src/protocol/parser.c src/protocol/packet.c src/protocol/protocol.c src/core/logger.c src/core/error.c .deps/mtcp-af_xdp/source/mtcp/lib/libmtcp.a .deps/mtcp-af_xdp/source/afxdp/libbpf/src/libbpf.a -lelf -lnuma -lz -lm -pthread -Wl,--allow-multiple-definition -o build/velora-mtcp
+In file included from include/velora/mtcp_runtime.h:8,
+                 from src/mtcp_main.c:4:
+.deps/mtcp-af_xdp/source/mtcp/include/mtcp_api.h:128:1: warning: inline function ‘mtcp_read’ declared but never defined
+  128 | mtcp_read(mctx_t mctx, int sockid, char *buf, size_t len);
+      | ^~~~~~~~~
+In file included from include/velora/mtcp_runtime.h:8,
+                 from src/net/mtcp_runtime.c:1:
+.deps/mtcp-af_xdp/source/mtcp/include/mtcp_api.h:128:1: warning: inline function ‘mtcp_read’ declared but never defined
+  128 | mtcp_read(mctx_t mctx, int sockid, char *buf, size_t len);
+      | ^~~~~~~~~
+src/protocol/protocol.c: In function ‘vr_protocol_handle_packet’:
+src/protocol/protocol.c:65:29: warning: comparison of integer expressions of different signedness: ‘uint64_t’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+   65 |                     if (idx == -1)
+      |                             ^~

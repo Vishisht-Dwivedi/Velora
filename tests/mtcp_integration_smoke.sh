@@ -12,6 +12,7 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_root="$(cd -- "$script_dir/.." && pwd -P)"
 launcher="$repo_root/scripts/run-velora-mtcp.sh"
 client="$repo_root/tests/mtcp_protocol_client.py"
+capture_tool="$repo_root/tests/capture_af_xdp_traffic.py"
 server_namespace="velora-af-server"
 client_namespace="velora-af-test1"
 server_interface="vmtcp1"
@@ -50,6 +51,10 @@ if [[ ! -x "$launcher" ]]; then
 fi
 if [[ ! -f "$client" ]]; then
     printf 'Protocol client is missing: %s\n' "$client" >&2
+    exit 1
+fi
+if [[ ! -f "$capture_tool" ]]; then
+    printf 'Packet capture helper is missing: %s\n' "$capture_tool" >&2
     exit 1
 fi
 for namespace in "$server_namespace" "$client_namespace"; do
@@ -91,8 +96,18 @@ fi
 
 temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/velora-mtcp-smoke.XXXXXX")"
 log_file="$temp_dir/server.log"
+pcap_file="$temp_dir/client-vmtcp1-peer.pcap"
 config_file="$temp_dir/afxdp_test.conf"
+runtime_root="$temp_dir/runtime"
+runtime_dir="$runtime_root/mtcp/src"
 server_pid=""
+capture_pid=""
+
+mkdir -p "$runtime_dir"
+ln -s "$repo_root/.deps/mtcp-af_xdp/source/mtcp/src/config" \
+    "$runtime_dir/config"
+ln -s "$repo_root/.deps/mtcp-af_xdp/source/afxdp" \
+    "$runtime_root/afxdp"
 
 if ! awk '
     /^[[:space:]]*port[[:space:]]*=/ {
@@ -115,6 +130,15 @@ process_running()
     [[ -n "$process_state" && "$process_state" != Z* ]]
 }
 
+stop_capture()
+{
+    if [[ -n "$capture_pid" ]] && kill -0 "$capture_pid" 2>/dev/null; then
+        kill -TERM "$capture_pid" 2>/dev/null || true
+        wait "$capture_pid" 2>/dev/null || true
+    fi
+    capture_pid=""
+}
+
 print_server_log()
 {
     if [[ -s "$log_file" ]]; then
@@ -126,6 +150,7 @@ print_server_log()
 
 cleanup()
 {
+    stop_capture
     if process_running; then
         kill -TERM "$server_pid" 2>/dev/null || true
         for ((attempt = 0; attempt < 50; attempt++)); do
@@ -139,7 +164,7 @@ cleanup()
     fi
 
     if [[ "$keep_logs" == 1 ]]; then
-        printf 'Server logs and temporary config retained in %s\n' "$temp_dir" >&2
+        printf 'Server logs, mTCP logs, pcap, and temporary config retained in %s\n' "$temp_dir" >&2
     else
         rm -f -- "$log_file" "$config_file"
         rmdir -- "$temp_dir" 2>/dev/null || true
@@ -150,28 +175,42 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+ip netns exec "$client_namespace" \
+    python3 "$capture_tool" "$client_interface" "$pcap_file" "$port" &
+capture_pid=$!
+
 ip netns exec "$server_namespace" \
+    env MTCP_RUNTIME_DIR="$runtime_dir" \
     "$launcher" "$config_file" "$server_ipv4" "$port" >"$log_file" 2>&1 &
 server_pid=$!
 
 ready=0
-for ((attempt = 0; attempt < 10#$startup_timeout * 10; attempt++)); do
+last_probe_error="no probe attempt completed"
+deadline=$((SECONDS + 10#$startup_timeout))
+while (( SECONDS < deadline )); do
     if ! process_running; then
         printf 'mTCP server exited before becoming reachable.\n' >&2
         print_server_log
         exit 1
     fi
-    if ip netns exec "$client_namespace" \
+    if probe_output="$(ip netns exec "$client_namespace" \
         python3 -c 'import socket, sys; s = socket.create_connection((sys.argv[1], int(sys.argv[2])), timeout=0.3); s.close()' \
-        "$server_ipv4" "$port" >/dev/null 2>&1; then
+        "$server_ipv4" "$port" 2>&1)"; then
         ready=1
         break
+    else
+        last_probe_error="$probe_output"
     fi
     sleep 0.1
 done
 
 if [[ "$ready" != 1 ]]; then
     printf 'mTCP server did not become reachable within %s seconds.\n' "$startup_timeout" >&2
+    printf 'Last client connection probe error: %s\n' "$last_probe_error" >&2
+    stop_capture
+    if [[ -s "$pcap_file" ]]; then
+        printf 'Client packet capture: %s\n' "$pcap_file" >&2
+    fi
     print_server_log
     exit 1
 fi
@@ -181,6 +220,9 @@ if ! ip netns exec "$client_namespace" \
     print_server_log
     exit 1
 fi
+
+stop_capture
+printf 'Client packet capture: %s\n' "$pcap_file"
 
 kill -TERM "$server_pid"
 for ((attempt = 0; attempt < 50; attempt++)); do

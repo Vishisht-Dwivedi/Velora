@@ -24,9 +24,15 @@ fi
 
 config_dir="$(cd -- "$(dirname -- "$config_file")" && pwd -P)"
 config_file="$config_dir/$(basename -- "$config_file")"
-runtime_dir="$repo_root/.deps/mtcp-af_xdp/source/mtcp/src"
+runtime_dir="${MTCP_RUNTIME_DIR:-$repo_root/.deps/mtcp-af_xdp/source/mtcp/src}"
 if [[ ! -d "$runtime_dir" ]]; then
     printf 'Pinned mTCP runtime directory is missing: %s\n' "$runtime_dir" >&2
+    exit 1
+fi
+if [[ ! -f "$runtime_dir/config/route.conf" ||
+      ! -f "$runtime_dir/config/arp.conf" ||
+      ! -f "$runtime_dir/../../afxdp/mtcp_xdp_pktio/afxdp_kern.o" ]]; then
+    printf 'mTCP runtime directory is missing its relative config or AF_XDP object paths: %s\n' "$runtime_dir" >&2
     exit 1
 fi
 

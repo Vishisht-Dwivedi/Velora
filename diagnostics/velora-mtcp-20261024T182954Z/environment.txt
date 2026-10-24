@@ -1,0 +1,23 @@
+timestamp=2026-10-24T18:29:54Z
+uid=1000
+user=vishisht
+cwd=/home/vishisht/Projects/Velora
+repo_root=/home/vishisht/Projects/Velora
+hostname=
+--- git status ---
+ M build/protocol_framing
+ M build/ring_connection
+ M build/velora-mtcp
+ M include/velora/logger.h
+ M log.txt
+ M src/core/logger.c
+ M src/mtcp_main.c
+ M src/net/mtcp_runtime.c
+?? diagnostics/
+?? scripts/diagnose_velora_mtcp.sh
+--- git rev-parse ---
+2f0f982e922a32f5af4c6a3452908dfc8e3bbd24
+--- namespace check ---
+velora-af-test (id: 0)
+--- config check ---
+-rw-r--r-- 1 vishisht vishisht 39 Oct 23 17:20 /home/vishisht/Projects/Velora/.deps/mtcp-af_xdp/source/mtcp/src/config/afxdp_test.conf

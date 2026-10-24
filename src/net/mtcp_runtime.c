@@ -28,6 +28,10 @@ static int close_connection(vr_mtcp_runtime_t *runtime,
     struct mtcp_epoll_event event = { 0 };
     int result = 0;
 
+    vr_log_component(VR_COMPONENT_TCP,
+                     VR_LOG_INFO,
+                     "closing socket=%d",
+                     connection->net_conn.fd);
     event.data.sockid = connection->net_conn.fd;
     if (mtcp_epoll_ctl(runtime->context, runtime->epoll_fd,
                        MTCP_EPOLL_CTL_DEL, connection->net_conn.fd,
@@ -64,6 +68,12 @@ static int queue_response(vr_connection_t *connection, vr_packet_t *response)
     uint8_t *serialized;
     size_t offset = 0;
 
+    vr_log_component(VR_COMPONENT_PROTOCOL,
+                     VR_LOG_INFO,
+                     "queueing response type=%u payload_len=%u socket=%d",
+                     response->header.type,
+                     response->header.payload_len,
+                     connection->net_conn.fd);
     if (response->header.payload_len > 0 && response->payload == NULL) {
         errno = EINVAL;
         goto fail;
@@ -175,6 +185,12 @@ static int process_connection_data(vr_mtcp_runtime_t *runtime,
         received = mtcp_recv(runtime->context, connection->net_conn.fd,
                              (char *)write_region, write_capacity, 0);
         if (received > 0) {
+            vr_log_component(VR_COMPONENT_TCP,
+                             VR_LOG_INFO,
+                             "socket=%d recv_bytes=%zd write_capacity=%u",
+                             connection->net_conn.fd,
+                             (ssize_t)received,
+                             write_capacity);
             if (vr_conn_ring_buf_commit(&connection->read_buf,
                                         (uint32_t)received) == VR_ERROR) {
                 errno = EIO;
@@ -190,10 +206,20 @@ static int process_connection_data(vr_mtcp_runtime_t *runtime,
                     break;
                 }
                 if (parsed == VR_ERROR) {
+                    vr_log_component(VR_COMPONENT_PROTOCOL,
+                                     VR_LOG_ERROR,
+                                     "socket=%d parser rejected packet",
+                                     connection->net_conn.fd);
                     free(packet.payload);
                     return -1;
                 }
 
+                vr_log_component(VR_COMPONENT_PROTOCOL,
+                                 VR_LOG_INFO,
+                                 "socket=%d parsed packet type=%u payload_len=%u",
+                                 connection->net_conn.fd,
+                                 packet.header.type,
+                                 packet.header.payload_len);
                 vr_packet_t *response = vr_protocol_handle_packet(connection,
                                                                   &packet);
                 free(packet.payload);
@@ -235,6 +261,10 @@ int vr_mtcp_runtime_destroy(vr_mtcp_runtime_t *runtime)
         return -1;
     }
 
+    vr_log_component(VR_COMPONENT_BUILD,
+                     VR_LOG_INFO,
+                     "destroying mTCP runtime context=%p",
+                     (void *)runtime->context);
     if (runtime->context != NULL) {
         while (runtime->connections.count > 0) {
             vr_connection_t *connection =
@@ -294,27 +324,49 @@ int vr_mtcp_runtime_init(vr_mtcp_runtime_t *runtime, const char *config_file)
         return -1;
     }
 
+    vr_log_component(VR_COMPONENT_BUILD,
+                     VR_LOG_INFO,
+                     "initializing mTCP runtime config=%s",
+                     config_file);
     if (vr_connection_manager_init(&runtime->connections, 16) == VR_ERROR) {
         return -1;
     }
     runtime->connections_initialized = 1;
 
     if (mtcp_init(config_file) != 0) {
+        vr_log_component(VR_COMPONENT_BUILD,
+                         VR_LOG_ERROR,
+                         "mtcp_init failed config=%s errno=%d",
+                         config_file,
+                         errno);
         goto fail;
     }
     runtime->global_initialized = 1;
 
     runtime->context = mtcp_create_context(0);
     if (runtime->context == NULL) {
+        vr_log_component(VR_COMPONENT_BUILD,
+                         VR_LOG_ERROR,
+                         "mtcp_create_context failed config=%s",
+                         config_file);
         goto fail;
     }
 
     runtime->epoll_fd = mtcp_epoll_create(runtime->context,
                                           VR_MTCP_EVENT_BATCH_SIZE);
     if (runtime->epoll_fd < 0) {
+        vr_log_component(VR_COMPONENT_BUILD,
+                         VR_LOG_ERROR,
+                         "mtcp_epoll_create failed errno=%d",
+                         errno);
         goto fail;
     }
 
+    vr_log_component(VR_COMPONENT_BUILD,
+                     VR_LOG_INFO,
+                     "mTCP runtime ready context=%p epoll_fd=%d",
+                     (void *)runtime->context,
+                     runtime->epoll_fd);
     return 0;
 
 fail:
@@ -336,6 +388,12 @@ int vr_mtcp_runtime_listen(vr_mtcp_runtime_t *runtime,
         return -1;
     }
 
+    vr_log_component(VR_COMPONENT_TCP,
+                     VR_LOG_INFO,
+                     "binding listener addr=%s port=%u backlog=%d",
+                     ipv4_address,
+                     (unsigned int)port,
+                     backlog);
     address.sin_family = AF_INET;
     address.sin_port = htons(port);
     if (inet_pton(AF_INET, ipv4_address, &address.sin_addr) != 1) {
@@ -350,9 +408,21 @@ int vr_mtcp_runtime_listen(vr_mtcp_runtime_t *runtime,
         mtcp_bind(runtime->context, runtime->listener_socket,
                   (const struct sockaddr *)&address, sizeof(address)) < 0 ||
         mtcp_listen(runtime->context, runtime->listener_socket, backlog) < 0) {
+        vr_log_component(VR_COMPONENT_TCP,
+                         VR_LOG_ERROR,
+                         "listener setup failed addr=%s port=%u errno=%d",
+                         ipv4_address,
+                         (unsigned int)port,
+                         errno);
         return -1;
     }
 
+    vr_log_component(VR_COMPONENT_TCP,
+                     VR_LOG_INFO,
+                     "listener ready socket=%d addr=%s port=%u",
+                     runtime->listener_socket,
+                     ipv4_address,
+                     (unsigned int)port);
     return 0;
 }
 
@@ -373,9 +443,18 @@ int vr_mtcp_runtime_accept_one(vr_mtcp_runtime_t *runtime,
     if (socket_id < 0) {
         if (errno == EAGAIN || errno == EWOULDBLOCK)
             return 0;
+        vr_log_component(VR_COMPONENT_TCP,
+                         VR_LOG_ERROR,
+                         "accept failed listener_socket=%d errno=%d",
+                         runtime->listener_socket,
+                         errno);
         return -1;
     }
 
+    vr_log_component(VR_COMPONENT_TCP,
+                     VR_LOG_INFO,
+                     "accepted socket=%d",
+                     socket_id);
     if (mtcp_setsock_nonblock(runtime->context, socket_id) < 0) {
         int saved_errno = errno;
         mtcp_close(runtime->context, socket_id);
@@ -435,9 +514,19 @@ int vr_mtcp_runtime_process_events(vr_mtcp_runtime_t *runtime,
     event_count = mtcp_epoll_wait(runtime->context, runtime->epoll_fd, events,
                                   VR_MTCP_EVENT_BATCH_SIZE, timeout_ms);
     if (event_count < 0) {
+        vr_log_component(VR_COMPONENT_TCP,
+                         VR_LOG_ERROR,
+                         "epoll_wait failed timeout_ms=%d errno=%d",
+                         timeout_ms,
+                         errno);
         return errno == EINTR ? 0 : -1;
     }
 
+    vr_log_component(VR_COMPONENT_TCP,
+                     VR_LOG_INFO,
+                     "epoll_wait returned %d events timeout_ms=%d",
+                     event_count,
+                     timeout_ms);
     for (int index = 0; index < event_count; index++) {
         uint32_t close_events = MTCP_EPOLLERR | MTCP_EPOLLHUP | MTCP_EPOLLRDHUP;
         vr_connection_t *connection = find_connection(

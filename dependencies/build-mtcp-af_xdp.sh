@@ -8,7 +8,6 @@ OWNERSHIP_PATCH="$ROOT_DIR/dependencies/patches/0002-xdp-ownership-and-failure-p
 SOCKET_MAP_PATCH="$ROOT_DIR/dependencies/patches/0003-af-xdp-socket-map-registration.patch"
 OWNED_LIFECYCLE_PATCH="$ROOT_DIR/dependencies/patches/0004-af-xdp-owned-lifecycle.patch"
 QUEUE_TX_PATCH="$ROOT_DIR/dependencies/patches/0005-af-xdp-queue-and-tx-safety.patch"
-GRACEFUL_LIFECYCLE_PATCH="$ROOT_DIR/dependencies/patches/0006-af-xdp-graceful-lifecycle.patch"
 BUILD_ROOT="$ROOT_DIR/.deps/mtcp-af_xdp"
 SOURCE_DIR="$BUILD_ROOT/source"
 
@@ -93,16 +92,6 @@ elif git -C "$SOURCE_DIR" apply --ignore-whitespace --unidiff-zero --recount --c
     git -C "$SOURCE_DIR" apply --ignore-whitespace --unidiff-zero --recount "$QUEUE_TX_PATCH"
 else
     printf 'Dependency source has unexpected AF_XDP queue/TX changes; refusing to patch it.\n' >&2
-    exit 1
-fi
-
-if grep -Fq 'io_init_failed' "$SOURCE_DIR/mtcp/src/core.c" &&
-   grep -Fq 'xsk_registered' "$SOURCE_DIR/mtcp/src/afxdp_module.c"; then
-    printf 'AF_XDP graceful lifecycle patch already applied.\n'
-elif git -C "$SOURCE_DIR" apply --ignore-whitespace --unidiff-zero --recount --check "$GRACEFUL_LIFECYCLE_PATCH"; then
-    git -C "$SOURCE_DIR" apply --ignore-whitespace --unidiff-zero --recount "$GRACEFUL_LIFECYCLE_PATCH"
-else
-    printf 'Dependency source has unexpected AF_XDP lifecycle changes; refusing to patch it.\n' >&2
     exit 1
 fi
 

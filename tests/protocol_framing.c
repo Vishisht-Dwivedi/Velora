@@ -257,6 +257,69 @@ static void test_stream_close_has_no_undefined_response(void)
     assert(conn.proto_state == VR_PROTO_ESTABILISHED);
 }
 
+static void test_duplicate_stream_close_is_ignored(void)
+{
+    vr_connection_t conn = {0};
+    vr_packet_t packet = {0};
+    conn.proto_state = VR_PROTO_ESTABILISHED;
+    conn.active_streams = 2;
+    conn.streams_bitmap[0] = 3;
+    packet.header.type = VR_PKT_STREAM_CLOSE;
+    packet.header.stream_id = 1;
+
+    assert(vr_protocol_handle_packet(&conn, &packet) == NULL);
+    assert(conn.active_streams == 1);
+    assert(conn.streams_bitmap[0] == 1);
+    assert(vr_protocol_handle_packet(&conn, &packet) == NULL);
+    assert(conn.active_streams == 1);
+    assert(conn.streams_bitmap[0] == 1);
+}
+
+static void test_unopened_stream_close_is_ignored(void)
+{
+    vr_connection_t conn = {0};
+    vr_packet_t packet = {0};
+    conn.proto_state = VR_PROTO_ESTABILISHED;
+    conn.active_streams = 1;
+    conn.streams_bitmap[0] = 1;
+    packet.header.type = VR_PKT_STREAM_CLOSE;
+    packet.header.stream_id = 2;
+
+    assert(vr_protocol_handle_packet(&conn, &packet) == NULL);
+    assert(conn.active_streams == 1);
+    assert(conn.streams_bitmap[0] == 1);
+}
+
+static void test_default_stream_close_is_ignored(void)
+{
+    vr_connection_t conn = {0};
+    vr_packet_t packet = {0};
+    conn.proto_state = VR_PROTO_ESTABILISHED;
+    conn.active_streams = 1;
+    conn.streams_bitmap[0] = 1;
+    packet.header.type = VR_PKT_STREAM_CLOSE;
+    packet.header.stream_id = 0;
+
+    assert(vr_protocol_handle_packet(&conn, &packet) == NULL);
+    assert(conn.active_streams == 1);
+    assert(conn.streams_bitmap[0] == 1);
+}
+
+static void test_stream_close_with_one_active_stream_is_ignored(void)
+{
+    vr_connection_t conn = {0};
+    vr_packet_t packet = {0};
+    conn.proto_state = VR_PROTO_ESTABILISHED;
+    conn.active_streams = 1;
+    conn.streams_bitmap[0] = 3;
+    packet.header.type = VR_PKT_STREAM_CLOSE;
+    packet.header.stream_id = 1;
+
+    assert(vr_protocol_handle_packet(&conn, &packet) == NULL);
+    assert(conn.active_streams == 1);
+    assert(conn.streams_bitmap[0] == 3);
+}
+
 int main(void)
 {
     assert(VR_HDR_SIZE == 8);
@@ -268,5 +331,9 @@ int main(void)
     test_invalid_header();
     test_wrapped_header_and_partial_payload();
     test_stream_close_has_no_undefined_response();
+    test_duplicate_stream_close_is_ignored();
+    test_unopened_stream_close_is_ignored();
+    test_default_stream_close_is_ignored();
+    test_stream_close_with_one_active_stream_is_ignored();
     return 0;
 }

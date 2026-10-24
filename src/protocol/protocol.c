@@ -80,9 +80,13 @@ vr_packet_t *vr_protocol_handle_packet(vr_connection_t *conn, vr_packet_t *pkt)
                 case VR_PKT_STREAM_CLOSE: {
                     uint8_t bitmap_idx = pkt->header.stream_id / 64;
                     uint8_t bitmap_offset = pkt->header.stream_id % 64;
-                    uint64_t bit_neg = 1ULL << bitmap_offset;
-                    conn->streams_bitmap[bitmap_idx] &= ~(bit_neg);
-                    conn->active_streams--;
+                    uint64_t stream_bit = 1ULL << bitmap_offset;
+                    if (pkt->header.stream_id != 0 &&
+                        conn->active_streams > 1 &&
+                        (conn->streams_bitmap[bitmap_idx] & stream_bit) != 0) {
+                        conn->streams_bitmap[bitmap_idx] &= ~stream_bit;
+                        conn->active_streams--;
+                    }
                     free(response);
                     response = NULL;
                     if (conn->active_streams == 0)

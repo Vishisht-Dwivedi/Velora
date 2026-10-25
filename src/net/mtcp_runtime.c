@@ -277,10 +277,17 @@ int vr_mtcp_runtime_destroy(vr_mtcp_runtime_t *runtime)
             }
         }
 
-        if (runtime->listener_socket >= 0 &&
-            mtcp_close(runtime->context, runtime->listener_socket) < 0) {
-            result = -1;
-        }
+        /*
+         * Do not call mtcp_close on runtime->listener_socket. In mTCP,
+         * CloseListeningSocket() frees the struct tcp_listener but never
+         * removes it from mtcp->listeners (ListenerHTRemove is not called).
+         * Subsequently, during mtcp_destroy_context/mtcp_destroy, the worker
+         * thread exits its main loop and calls InterruptApplication(), which
+         * traverses mtcp->listeners and dereferences the freed listener in
+         * EqualListener() at fhash.c:142, causing a SIGSEGV / GPF.
+         * The listener and its hash table are safely freed when
+         * mtcp_destroy_context() and mtcp_destroy() tear down the mTCP stack.
+         */
         runtime->listener_socket = -1;
 
         if (runtime->epoll_fd >= 0 &&

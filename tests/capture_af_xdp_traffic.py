@@ -50,6 +50,8 @@ def main():
 
     with open(args.pcap_path, "wb") as capture_file:
         capture_file.write(struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1))
+        capture_file.flush()
+        print(f"[CAPTURE] Packet socket bound on {args.interface}; pcap header ready.", flush=True)
         packet_count = 0
         started_at = time.monotonic()
         while running:

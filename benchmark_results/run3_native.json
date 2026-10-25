@@ -1,0 +1,80 @@
+{
+  "metadata": {
+    "backend": "native",
+    "commit": "34ada8594185b798b2873853d5bd98d70df5081b",
+    "kernel": "7.2.11-arch1-1",
+    "cpu_model": "Intel(R) Core(TM) i3-7020U CPU @ 2.30GHz",
+    "timestamp": "2026-10-25T05:32:55Z",
+    "host": "198.18.0.1",
+    "port": 22409,
+    "connections": 50,
+    "pipeline": 8,
+    "warmup_seconds": 2,
+    "duration_seconds": 5,
+    "repeats": 1
+  },
+  "runs": [
+    {
+      "requested_connections": 50,
+      "established_connections": 50,
+      "active_connections": 50,
+      "connection_failures": 0,
+      "registration_failures": 0,
+      "pipeline_depth": 8,
+      "completed_transactions": 1133720,
+      "throughput_ops_per_second": 226708.0,
+      "latency_us": {
+        "p50": 1651,
+        "p95": 2554,
+        "p99": 3331,
+        "unit": "microseconds",
+        "scope": "per_ping_rtt"
+      },
+      "latency_samples": 1133720,
+      "errors": 0,
+      "in_flight_at_end": 400,
+      "measured_seconds": 5.0,
+      "warmup_seconds": 2,
+      "run_index": 1,
+      "wall_seconds": 7.03,
+      "server_cpu_seconds": 4.7,
+      "server_cpu_percent_one_core": 94.0,
+      "host_system_cpu_percent": {
+        "cpu0": 58.81,
+        "cpu1": 66.52,
+        "cpu2": 64.77,
+        "cpu3": 67.42
+      }
+    }
+  ],
+  "aggregate_summary": {
+    "run_count": 1,
+    "throughput_ops_per_second": {
+      "min": 226708.0,
+      "max": 226708.0,
+      "mean": 226708.0,
+      "median": 226708.0,
+      "stdev": 0.0,
+      "unit": "completed_pongs_per_second"
+    },
+    "latency_p50_us": {
+      "median": 1651,
+      "min": 1651,
+      "max": 1651
+    },
+    "latency_p95_us": {
+      "median": 2554,
+      "min": 2554,
+      "max": 2554
+    },
+    "latency_p99_us": {
+      "median": 3331,
+      "min": 3331,
+      "max": 3331
+    },
+    "server_cpu_percent_one_core": {
+      "mean": 94.0,
+      "median": 94.0
+    }
+  }
+}

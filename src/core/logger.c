@@ -97,7 +97,15 @@ vr_result_t vr_log_init(void)
             vr_log_threshold = VR_LOG_WARN;
         } else if (strcmp(threshold, "ERROR") == 0 || strcmp(threshold, "error") == 0) {
             vr_log_threshold = VR_LOG_ERROR;
+        } else if (strcmp(threshold, "OFF") == 0 || strcmp(threshold, "off") == 0 ||
+                   strcmp(threshold, "NONE") == 0 || strcmp(threshold, "none") == 0) {
+            vr_log_threshold = (vr_log_level_t)4;
         }
+    }
+
+    if (vr_log_threshold >= (vr_log_level_t)4) {
+        log_ptr = NULL;
+        return VR_SUCCESS;
     }
 
     if ((log_ptr = fopen(log_path, "a+")) == NULL) {

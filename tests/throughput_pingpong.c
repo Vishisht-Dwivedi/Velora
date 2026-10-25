@@ -574,6 +574,7 @@ int main(int argc, char **argv)
     int client_count = DEFAULT_CLIENTS;
     uint32_t pipeline = DEFAULT_PIPELINE;
     int duration = DEFAULT_DURATION;
+    int warmup = 0;
 
     if (argc > 1)
         host = argv[1];
@@ -590,13 +591,17 @@ int main(int argc, char **argv)
     if (argc > 5)
         duration = atoi(argv[5]);
 
+    if (argc > 6)
+        warmup = atoi(argv[6]);
+
     if (client_count <= 0 ||
         pipeline == 0 ||
-        duration <= 0)
+        duration <= 0 ||
+        warmup < 0)
     {
         fprintf(
             stderr,
-            "Usage: %s [host] [port] [connections] [pipeline] [duration]\n",
+            "Usage: %s [host] [port] [connections] [pipeline] [duration] [warmup]\n",
             argv[0]
         );
 
@@ -617,6 +622,7 @@ int main(int argc, char **argv)
     printf("[CONFIG] pipeline/conn     : %u PINGs\n", pipeline);
     printf("[CONFIG] packet size       : 8 bytes\n");
     printf("[CONFIG] duration          : %d seconds\n", duration);
+    printf("[CONFIG] warmup            : %d seconds\n", warmup);
 
     printf("\n[MEASUREMENT]\n");
     printf("  A message is counted ONLY when a valid PONG is received.\n");
@@ -789,14 +795,39 @@ int main(int argc, char **argv)
     uint64_t total_completed = 0;
     uint64_t total_errors = 0;
 
+    int in_warmup = (warmup > 0);
+    double warmup_end = start + (double)warmup;
+
     int active = established - registration_failures;
 
     while (!stop_requested)
     {
         double now = monotonic_seconds();
 
-        if (now - start >= (double)duration)
+        if (in_warmup)
+        {
+            if (now >= warmup_end)
+            {
+                in_warmup = 0;
+                start = now;
+                last_report = start;
+                total_completed = 0;
+                total_errors = 0;
+                for (int i = 0; i < client_count; i++)
+                {
+                    clients[i].completed = 0;
+                    clients[i].errors = 0;
+                }
+                memset(latency_histogram, 0, sizeof(latency_histogram));
+                latency_samples = 0;
+                printf("[WARMUP COMPLETE] Starting measured window of %d seconds...\n", duration);
+                fflush(stdout);
+            }
+        }
+        else if (now - start >= (double)duration)
+        {
             break;
+        }
 
         int ready = epoll_wait(
             epfd,
@@ -944,24 +975,36 @@ int main(int argc, char **argv)
             for (int i = 0; i < client_count; i++)
                 current_errors += clients[i].errors;
 
-            printf(
-                "[%7.2fs] "
-                "active=%5d "
-                "completed=%12llu "
-                "throughput=%10.0f PONG/s "
-                "errors=%llu\n",
-
-                elapsed,
-                active,
-
-                (unsigned long long)
-                    total_completed,
-
-                rate,
-
-                (unsigned long long)
-                    current_errors
-            );
+            if (in_warmup)
+            {
+                printf(
+                    "[WARMUP %5.2fs] "
+                    "active=%5d "
+                    "completed=%12llu "
+                    "throughput=%10.0f PONG/s "
+                    "errors=%llu\n",
+                    now - (warmup_end - (double)warmup),
+                    active,
+                    (unsigned long long)total_completed,
+                    rate,
+                    (unsigned long long)current_errors
+                );
+            }
+            else
+            {
+                printf(
+                    "[%7.2fs] "
+                    "active=%5d "
+                    "completed=%12llu "
+                    "throughput=%10.0f PONG/s "
+                    "errors=%llu\n",
+                    elapsed,
+                    active,
+                    (unsigned long long)total_completed,
+                    rate,
+                    (unsigned long long)current_errors
+                );
+            }
 
             fflush(stdout);
 
@@ -1033,6 +1076,11 @@ int main(int argc, char **argv)
     printf(
         "  Benchmark runtime       : %.2f s\n",
         elapsed
+    );
+
+    printf(
+        "  Warmup duration         : %d s\n",
+        warmup
     );
 
     printf(

@@ -78,3 +78,7 @@ velora-mtcp:
 	@test -f $(MTCP_SOURCE)/afxdp/libbpf/src/libbpf.a || { echo "Missing libbpf library: $(MTCP_SOURCE)/afxdp/libbpf/src/libbpf.a; prepare the pinned dependency without running its patching build script" >&2; exit 1; }
 	mkdir -p build
 	$(CC) $(CFLAGS) $(RELEASE_FLAGS) $(MTCP_CPPFLAGS) src/mtcp_main.c $(MTCP_RUNTIME_SRCS) $(MTCP_LDLIBS) -o $(MTCP_SERVER)
+
+build/throughput_pingpong: tests/throughput_pingpong.c
+	mkdir -p build
+	$(CC) $(CFLAGS) $(RELEASE_FLAGS) -D_POSIX_C_SOURCE=200809L tests/throughput_pingpong.c -o build/throughput_pingpong
